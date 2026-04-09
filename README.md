@@ -39,19 +39,31 @@ The world of Stalker Reforged isn't static. It generates its own gameplay loops 
 
 ---
 
-## Installation & Setup Instructions
+## Installation & Deployment
 
-Because this is a developer codebase (source mod folder) for Arma Reforger, you need to compile and set it up inside the **Enfusion Workbench**.
+Since this repository contains raw Enforce Source Scripts, you must compile and bind them inside your environment before putting them live on a multiplayer server.
 
-1. **Launch ARMA Reforger Workbench.**
+### 🛠️ Local Workbench Setup (Testing)
+1. **Launch ARMA Reforger Tools (Workbench).**
 2. On the welcome screen, click on **Create New Project**. 
-   - Note: If you want to use the boilerplate project file provided, you can simply try to **Open Project** and select the `addon.gproj` file found in the root of this folder instead. 
-3. **Copy the Source Code**:
-   - If you created a new project in Workbench, close Workbench and copy the entire `Scripts/`, `UI/`, and `Prefabs/` folders from this directory into your newly generated Workbench Addon directory (usually located in `Documents/My Games/ArmaReforgerWorkbench/addons/YourName`).
-4. **Re-open Workbench** and launch your project in the **World Editor**.
-5. **Asset Import Restrictions**:
-   - **Important Note on Models:** This repository provides the Enforce Scripts. Existing source S.T.A.L.K.E.R. models are encapsulated in a legacy `.ogf` format. Arma Reforger requires `.fbx` conversion and manual skeleton mapping to output `.xob` objects.
-   - For all major mechanic testing, the codebase utilizes pre-existing vanilla Reforger `.et` paths (like FIA Riflemen for assassination bounties and Soviet Mi-8s for QRF Gunships).
-6. **Playing/Testing**:
-   - Make sure your local `Character_Base.et` player prefab has the necessary Manager scripts attached to it via the components tab.
-   - Hit **Play** (F5) inside the World Editor. Open your PDA, generate tasks, establish strongholds, or kill enough AI to provoke a Gunship!
+   - *(Alternatively, if you downloaded the exact `.gproj` scaffolding, you can click "Open Project" on `addon.gproj`)*
+3. **Copy the Code**: Close Workbench entirely. Copy the `Scripts/`, `UI/`, and `Prefabs/` folders from this repository directly into your newly generated Workbench Addon directory (typically `Documents/My Games/ArmaReforgerWorkbench/addons/YourNewModName`).
+4. **Re-Open Workbench** and launch your project in the **World Editor**. Start dragging elements like `SCR_ZoneHeatManager` or `SCR_BanditCampComponent` onto the map geometry!
+5. **Asset Dependency Note**: This repository utilizes vanilla Reforger Assets (FIA/Soviet) as placeholders for the custom scripts. True `.ogf` S.T.A.L.K.E.R. models require manual conversion to `.fbx` via Blender and importation through Workbench to bind to these scripts.
+
+### 🌐 Dedicated Server Deployment
+To get this custom STALKER framework onto a live dedicated server:
+
+1. **Pack the Project**: Open Workbench. Go to `Project > Publish Project` (You don't have to make it public on the Workshop, you can leave it Unlisted or Local). 
+2. Let the engine bake and compile the `.c` scripts into optimized data chunks.
+3. **Acquire your Mod/Addon ID**: Once published or packed, the Workshop will give you a unique GUID (e.g., `59A12B34C5...`).
+4. **Edit your `server.json`**: Open the configuration file on your Dedicated Server host. Under the `"mods": []` array, insert your project's ID. 
+```json
+"mods": [
+    {
+        "modId": "YOUR_WORKSHOP_GUID",
+        "name": "Stalker Reforged - Framework"
+    }
+]
+```
+5. **Reboot the Server**: The server will automatically download the baked scripts and initialize the Zone Heat, Stash Spawners, and Bandit algorithms universally for all connecting clients!

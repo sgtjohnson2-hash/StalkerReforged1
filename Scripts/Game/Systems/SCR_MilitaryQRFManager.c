@@ -15,6 +15,11 @@ class SCR_MilitaryQRFManager : GenericEntity
 	[Attribute("{22A875E30470BD4F}Prefabs/AI/Waypoints/AIWaypoint_SearchAndDestroy.et", UIWidgets.ResourceNamePicker, desc: "Waypoint archetype for Gunship circling")]
 	protected ResourceName m_sWaypointPrefab;
 
+	[Attribute("4700 200 11000", desc: "Everon Airbase coordinate (Z value is +200m for safe aerial spawn)")]
+	protected vector m_vAirbaseSpawnPos;
+	
+	protected bool m_bAirbaseLost = false;
+
 	static SCR_MilitaryQRFManager GetInstance()
 	{
 		return s_Instance;
@@ -26,17 +31,28 @@ class SCR_MilitaryQRFManager : GenericEntity
 		s_Instance = this;
 	}
 
+	void SetAirbaseLost(bool state)
+	{
+		m_bAirbaseLost = state;
+		if (state) Print("Server: Airbase has been officially designated as LOST. All future QRFs will route from off-map sectors.");
+	}
+
 	void DispatchHelicopter(vector targetZone)
 	{
-		// 1. Math: Calculate an edge-of-map spawn location (e.g. 3500m out and 200m in the air)
-		vector origin = targetZone;
-		float dist = 3500;
-		float angle = Math.RandomFloat(0, Math.PI2);
-		
-		vector spawnPos = "0 0 0";
-		spawnPos[0] = origin[0] + (Math.Cos(angle) * dist);
-		spawnPos[2] = origin[2] + (Math.Sin(angle) * dist);
-		spawnPos[1] = GetGame().GetWorld().GetSurfaceY(spawnPos[0], spawnPos[2]) + 200; // 200m altitude
+		vector spawnPos = m_vAirbaseSpawnPos;
+
+		// If the airbase is lost, use the fallback edge-of-map radial math
+		if (m_bAirbaseLost)
+		{
+			vector origin = targetZone;
+			float dist = 4000; // Edge of map distance
+			float angle = Math.RandomFloat(0, Math.PI2);
+			
+			spawnPos[0] = origin[0] + (Math.Cos(angle) * dist);
+			spawnPos[2] = origin[2] + (Math.Sin(angle) * dist);
+			spawnPos[1] = GetGame().GetWorld().GetSurfaceY(spawnPos[0], spawnPos[2]) + 200; 
+			Print("Server: Airbase offline. QRF routing from ocean boundaries.");
+		}
 
 		// 2. Spawn the physical Helicopter
 		EntitySpawnParams params = new EntitySpawnParams();
@@ -77,5 +93,19 @@ class SCR_MilitaryQRFManager : GenericEntity
 		}
 		
 		Print("Server: QRF AI assigned Search And Destroy Waypoint at: " + targetZone.ToString());
+	}
+
+	// Used when the Airbase is directly assaulted
+	void LaunchMassResponse(vector hotzone)
+	{
+		Print("Server: MASS RESPONSE SCRAMBLED. Multiple bogeys incoming.");
+		
+		// Spawn 2 Gunships!
+		DispatchHelicopter(hotzone);
+		
+		// Small offset so the second chopper doesn't explode inside the first one
+		vector offsetZone = hotzone;
+		offsetZone[0] = offsetZone[0] + 50; 
+		DispatchHelicopter(offsetZone);
 	}
 }
