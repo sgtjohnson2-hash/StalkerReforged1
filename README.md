@@ -9,15 +9,18 @@ Utilizing highly optimized, component-based Enforce Script (`.c`) instead of leg
 ## Extensive Core Features
 
 ### 🩸 Core Survival & Medical Engineering
+
 - **Overhauled Medical (`SCR_GammaMedicalItemComponent`)**: Replaces instant-heals with complex Heal-over-Time arrays. Granular tracking for Medkits, Bandages hooking directly into Arma's bleeding system, and a perpetual `SCR_RadiationSicknessComponent` that scales ambient mSv damage over time.
 - **Physical Needs (`SCR_SurvivalManagerComponent`)**: Slowly drains Thirst, Hunger, and Sleep. Neglecting your physiological stats results in brutal, escalating passive damage penalties.
 - **Weapon Degradation (`SCR_WeaponDurabilityComponent`)**: Guns degrade incrementally directly correlating with every fired shot. Reaching critical condition thresholds mathematically subjects you to stochastic firing-pin jams.
 
 ### 🛠️ The Workbench Loop
+
 - **Interactive spatial crafting (`SCR_WorkbenchComponent`)**: Interactable Workbench prefabs that bridge from the 3D world directly into structured Enfusion `.layout` graphic interfaces. 
 - **Scrap Economy (`SCR_RepairSystemComponent`)**: Eliminate the need to magically snap guns to 100% durability. Combine scavenged inventory scrap to algorithmically restore weapon conditions.
 
 ### 📟 S.T.A.L.K.E.R. PDA Network
+
 - **Dynamic Task Architecture (`SCR_PDATaskManagerComponent`)**: Built natively off Arma Reforger's underlying `SCR_BaseTask` system. Procedural Stalker tasks are automatically piped directly to the player's vanilla HUD and compass.
 - **Ambient & Active Chat (`SCR_PDANetworkManager`)**: Monitors raw server death events (`OnDestroyed`) and transmits real Faction/Player assassinations across the PDA chatfeed, woven together with ambient spoofed STALKER lore and Emission warnings. Features audio hooks mimicking the physical Stalker PDA draw and beep noises.
 
@@ -30,6 +33,7 @@ The world of Stalker Reforged isn't static. It generates its own gameplay loops 
 - **Static Base Anchors (`SCR_StrongholdComponent`)**: A drag-and-drop component permitting server owners to establish pre-populated Soviet military garrisons that auto-generate defensive patrols immediately on server start.
 
 ### ⚡ Classic Anomalies & Blowouts
+
 - **Component Anomalies**: Base framework allowing custom damage, visuals, and logic for Burner, Electra, and Teleport anomalies.
 - **Dynamic Blowout Events**: A unified Game System (`SCR_BlowoutSystem`) tightly woven with Reforger's dynamic weather manager to darken skies, ramp up thick fog, and cast global storms. Includes an 'Instakill' exposure mechanic for players caught outside their `SCR_PlayerBlowoutHandlerComponent` roof-raycast bounds.
 
