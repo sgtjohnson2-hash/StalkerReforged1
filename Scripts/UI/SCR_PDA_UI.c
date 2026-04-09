@@ -13,6 +13,7 @@ class SCR_PDA_UI : ScriptComponent
 	protected Widget m_wMapTab;
 	protected Widget m_wTasksTab;
 	protected Widget m_wLogsTab;
+	protected Widget m_wFactionsTab;
 	
 	[Attribute("Sound_PDA_Open", desc: "Sound event triggered when PDA is pulled out")]
 	protected string m_sSoundOpen;
@@ -74,9 +75,35 @@ class SCR_PDA_UI : ScriptComponent
 		m_wMapTab.SetVisible(tabName == "Map");
 		m_wTasksTab.SetVisible(tabName == "Tasks");
 		m_wLogsTab.SetVisible(tabName == "Chat");
+		m_wFactionsTab.SetVisible(tabName == "Factions");
 		*/
 		
 		if (tabName == "Tasks") RefreshTaskList();
+		if (tabName == "Factions") RefreshFactionsBoard();
+	}
+
+	// This function simulates the clicking of an HTML-style widget button on the Factions Tab
+	void UI_SelectFaction(string factionKey)
+	{
+		Print("Client UI: User clicked 'Join " + factionKey + "' on their PDA.");
+		
+		// In Reforger, UI components can fetch the controlled player entity:
+		// IEntity player = SCR_PlayerController.GetLocalControlledEntity();
+		// For our structural script, we pseudo-reference the owner.
+		IEntity player = GetOwner(); 
+		
+		if (player)
+		{
+			SCR_PlayerFactionManagerComponent factionMgr = SCR_PlayerFactionManagerComponent.Cast(player.FindComponent(SCR_PlayerFactionManagerComponent));
+			if (factionMgr)
+			{
+				factionMgr.JoinFaction(factionKey);
+			}
+			else
+			{
+				Print("Client Error: Player missing SCR_PlayerFactionManagerComponent.");
+			}
+		}
 	}
 
 	// Receives messages from the Network Manager (The "Chat" Tab)
@@ -117,6 +144,36 @@ class SCR_PDA_UI : ScriptComponent
 				Print("  [PDA UI] " + stalkerTask.GetTitle() + " " + status + " - Reward: " + stalkerTask.GetRewardRU() + " RU");
 			}
 		}
+	}
+	
+	void RefreshFactionsBoard()
+	{
+		Print("PDA [FACTIONS TAB] Accessing Global Leaderboard...");
+		
+		SCR_FactionWarManager warMgr = SCR_FactionWarManager.GetInstance();
+		if (!warMgr)
+		{
+			Print("  [ERROR] Faction Network Offline.");
+			return;
+		}
+		
+		int ussrScore, usScore, fiaScore;
+		warMgr.GetFactionControlStats(ussrScore, usScore, fiaScore);
+		
+		// Print the live pseudo-UI block
+		Print("=================================");
+		Print("    ZONE TERRITORY LEADERBOARD   ");
+		Print("=================================");
+		Print("  MILITARY (Spetsnaz): " + ussrScore + " Bases Control");
+		Print("  MERCENARIES (NATO) : " + usScore + " Bases Control");
+		Print("  RENEGADES (Bandits): " + fiaScore + " Bases Control");
+		Print("---------------------------------");
+		Print(" RECRUITMENT TERMINALS AVAILABLE ");
+		Print(" > [JOIN USSR] ");
+		Print(" > [JOIN US] ");
+		Print(" > [JOIN FIA] ");
+		Print(" > [SEVER CONTRACT (Loner)] ");
+		Print("=================================");
 	}
 }
 
