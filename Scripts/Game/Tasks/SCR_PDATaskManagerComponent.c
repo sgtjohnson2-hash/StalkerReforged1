@@ -2,7 +2,7 @@ enum EStalkerTaskType
 {
 	ASSASSINATION,
 	FETCH,
-	MUTANT_HUNT
+	FACTION_ASSAULT
 }
 
 // Inherit from Arma Reforger's vanilla SCR_BaseTask so it appears natively on the HUD/Map
@@ -87,8 +87,8 @@ class SCR_PDATaskManagerComponent : ScriptComponent
 
 		vector pOrigin = localPlayer.GetOrigin();
 		
-		// Generate the physical map target!
-		missionMgr.CreateDynamicMission(pOrigin, EStalkerTaskType.MUTANT_HUNT);
+		// Generate the physical map target! (Replaced Mutant Hunt with Faction Assault)
+		missionMgr.CreateDynamicMission(pOrigin, EStalkerTaskType.FACTION_ASSAULT);
 		
 		Print("Client PDA: Dynamic Mission created and target spawned coordinates synced to map!");
 		

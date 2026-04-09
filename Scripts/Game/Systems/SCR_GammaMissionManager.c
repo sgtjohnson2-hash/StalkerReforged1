@@ -10,8 +10,8 @@ class SCR_GammaMissionManager : GenericEntity
 	[Attribute("{BCE5F98AC8212BD9}Prefabs/Characters/Factions/OPFOR/USSR_Army/Character_USSR_Rifleman.et", UIWidgets.ResourceNamePicker, desc: "Prefab representing a Stalker Bandit")]
 	protected ResourceName m_sBanditPrefab;
 
-	[Attribute("{7A9EE19AB67B298B}Prefabs/Characters/Factions/INDEP/FIA/Character_FIA_Rifleman.et", UIWidgets.ResourceNamePicker, desc: "Prefab representing a generic Mutant (Using FIA as placeholder)")]
-	protected ResourceName m_sMutantPrefab;
+	[Attribute("{7A9EE19AB67B298B}Prefabs/Characters/Factions/INDEP/FIA/Character_FIA_Rifleman.et", UIWidgets.ResourceNamePicker, desc: "Prefab representing an FIA Faction Target")]
+	protected ResourceName m_sFIAPrefab;
 	
 	[Attribute("100", desc: "Base reward scaling multiplier per 500m")]
 	protected int m_iRewardScaleRate;
@@ -52,10 +52,10 @@ class SCR_GammaMissionManager : GenericEntity
 
 		switch(type)
 		{
-			case EStalkerTaskType.MUTANT_HUNT:
-				prefabToSpawn = m_sMutantPrefab;
-				missionName = "Purge Mutants";
-				missionDesc = "A mutant pack is disrupting operations. Eliminate them.";
+			case EStalkerTaskType.FACTION_ASSAULT:
+				prefabToSpawn = m_sFIAPrefab;
+				missionName = "Contract: Wipe out FIA Patrol";
+				missionDesc = "A rebel squad is holding a tactical position nearby. Eliminate the cell.";
 				break;
 				
 			case EStalkerTaskType.ASSASSINATION:
