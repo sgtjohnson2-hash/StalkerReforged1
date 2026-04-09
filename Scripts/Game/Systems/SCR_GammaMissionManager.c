@@ -31,16 +31,33 @@ class SCR_GammaMissionManager : GenericEntity
 	// It calculates a random position within radius and physically spawns the prefab.
 	SCR_StalkerBaseTask CreateDynamicMission(vector originPlayerPos, EStalkerTaskType type, int minRadius = 300, int maxRadius = 1500)
 	{
-		// 1. Math: Generate coordinates
-		float dist = Math.RandomFloat(minRadius, maxRadius);
-		float angle = Math.RandomFloat(0, Math.PI2);
-		
+		// 1. Math: Generate coordinates (Everon Validation Mode)
 		vector spawnPos = "0 0 0";
-		spawnPos[0] = originPlayerPos[0] + (Math.Cos(angle) * dist);
-		spawnPos[2] = originPlayerPos[2] + (Math.Sin(angle) * dist);
+		bool validPos = false;
+		float dist = 0;
 		
-		// Attempt to snap to terrain height (Simplified, requires BaseWorld raycasting in actual Enfusion but this is the schematic)
-		spawnPos[1] = GetGame().GetWorld().GetSurfaceY(spawnPos[0], spawnPos[2]);
+		for (int attempts = 0; attempts < 15; attempts++)
+		{
+			dist = Math.RandomFloat(minRadius, maxRadius);
+			float angle = Math.RandomFloat(0, Math.PI2);
+			
+			spawnPos[0] = originPlayerPos[0] + (Math.Cos(angle) * dist);
+			spawnPos[2] = originPlayerPos[2] + (Math.Sin(angle) * dist);
+			spawnPos[1] = GetGame().GetWorld().GetSurfaceY(spawnPos[0], spawnPos[2]);
+			
+			// Sea-level validation for Everon (prevent ocean spawns)
+			if (spawnPos[1] > 2.0)
+			{
+				validPos = true;
+				break;
+			}
+		}
+		
+		if (!validPos)
+		{
+			Print("Server Error: Dynamic Mission Generation failed. Radial math repeatedly pushed targets into the ocean.", LogLevel.ERROR);
+			return null;
+		}
 
 		// 2. Math: Reward calculation based on distance
 		int dynamicReward = 500 + (Math.Floor(dist / 500) * m_iRewardScaleRate);

@@ -10,10 +10,10 @@ class SCR_PDANetworkManager : GenericEntity
 	protected float m_fAmbientMessageInterval;
 	
 	protected ref array<string> m_aAmbientMessages = {
-		"Checking anomalies near the Agroprom institute. - Loner",
-		"Anyone trading artifact detectors down in the Rookie Village? - Sidorovich",
-		"Heavy mutant activity spotted in garbage. Stay frosty. - Duty Sergeant",
-		"Just found a Jellyfish! Drinks are on me tonight! - Strelok"
+		"Checking anomalies near Montignac. Lots of strange readings. - Loner",
+		"Anyone trading artifact detectors down in Morton? - Local Scavenger",
+		"Heavy mutant activity spotted climbing up to Castle. Stay frosty. - Security Sergeant",
+		"Just found a Jellyfish near the Levie military base! Drinks are on me tonight!"
 	};
 
 	static SCR_PDANetworkManager GetInstance()
