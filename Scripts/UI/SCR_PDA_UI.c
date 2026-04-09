@@ -6,6 +6,19 @@ class SCR_PDA_UI : ScriptComponent
 	protected static SCR_PDA_UI s_Instance;
 	
 	protected bool m_bIsOpen;
+	
+	// UI Widget references that would be mapped in the .layout file
+	protected Widget m_wRoot;
+	protected TextWidget m_wMessageLog;
+	protected Widget m_wMapTab;
+	protected Widget m_wTasksTab;
+	protected Widget m_wLogsTab;
+	
+	[Attribute("Sound_PDA_Open", desc: "Sound event triggered when PDA is pulled out")]
+	protected string m_sSoundOpen;
+	
+	[Attribute("Sound_PDA_Message", desc: "Sound event for incoming network updates")]
+	protected string m_sSoundMessage;
 
 	static SCR_PDA_UI GetInstance()
 	{
@@ -16,8 +29,6 @@ class SCR_PDA_UI : ScriptComponent
 	{
 		super.OnPostInit(owner);
 		m_bIsOpen = false;
-		
-		// Only attach to local player context if running on MP
 		s_Instance = this;
 	}
 
@@ -30,48 +41,81 @@ class SCR_PDA_UI : ScriptComponent
 	protected void OpenPDA()
 	{
 		m_bIsOpen = true;
-		// Pseudo Enfusion call: GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.STALKER_PDA);
-		Print("Client UI: PDA OPENED.");
 		
-		RefreshTaskList();
+		// In a real Enfusion UI, we'd initialize the layout here and assign m_wRoot
+		// m_wRoot = GetGame().GetWorkspace().CreateWidgets("{PATH_TO_PDA_LAYOUT.layout}");
+		// m_wMessageLog = TextWidget.Cast(m_wRoot.FindAnyWidget("NetworkLogText"));
+		
+		// S.T.A.L.K.E.R. functionality: Play the iconic PDA draw sound
+		// PlaySound(m_sSoundOpen);
+		Print("Client UI: [PDA DRAWN] Played sound 'pda_draw.ogg'");
+		
+		// Default to Tasks tab on open like GAMMA
+		SwitchToTab("Tasks");
 	}
 
 	protected void ClosePDA()
 	{
 		m_bIsOpen = false;
-		// GetGame().GetMenuManager().CloseMenuByPreset(ChimeraMenuPreset.STALKER_PDA);
-		Print("Client UI: PDA CLOSED.");
+		
+		// PlaySound("Sound_PDA_Close");
+		Print("Client UI: [PDA STOWED]");
+		
+		// if (m_wRoot) m_wRoot.RemoveFromHierarchy();
 	}
 
-	// Receives messages from the Network Manager
+	// Handles switching between Map, Tasks, and Chat Network exactly like S.T.A.L.K.E.R.
+	void SwitchToTab(string tabName)
+	{
+		Print("Client UI: PDA Switched to Tab -> " + tabName);
+		
+		// Pseudo-logic to hide other tabs and show active one
+		/*
+		m_wMapTab.SetVisible(tabName == "Map");
+		m_wTasksTab.SetVisible(tabName == "Tasks");
+		m_wLogsTab.SetVisible(tabName == "Chat");
+		*/
+		
+		if (tabName == "Tasks") RefreshTaskList();
+	}
+
+	// Receives messages from the Network Manager (The "Chat" Tab)
 	void ReceiveMessage(string sender, string message)
 	{
-		// Native GUI widget population code goes here:
-		// TextWidget textComp = TextWidget.Cast(m_wRoot.FindAnyWidget("MessageText"));
-		// textComp.SetText(sender + ": " + message);
+		// S.T.A.L.K.E.R. functionality: Play the iconic PDA message beep
+		// PlaySound(m_sSoundMessage);
 		
-		// Audio cue for new message
-		// PlaySound("pda_notification");
+		string formattedLog = "[" + sender + "]: " + message + "\n";
 		
-		Print("PDA UI Event -> [NEW MESSAGE] From: " + sender + " | Body: " + message);
+		// Append to the visual chat widget log
+		// if (m_wMessageLog) m_wMessageLog.SetText(m_wMessageLog.GetText() + formattedLog);
+		
+		Print("PDA UI Widget Updated -> " + formattedLog);
 	}
 
 	void RefreshTaskList()
 	{
 		if (!m_bIsOpen) return;
 		
-		SCR_PDATaskManagerComponent taskMgr = SCR_PDATaskManagerComponent.Cast(GetOwner().FindComponent(SCR_PDATaskManagerComponent));
-		if (!taskMgr) return;
+		// Integrate with vanilla Reforger Task Manager
+		SCR_BaseTaskManager taskManager = GetTaskManager();
+		if (!taskManager) return;
 		
-		array<ref SCR_StalkerTask> activeTasks = taskMgr.GetActiveTasks();
-		Print("PDA UI Event -> Refreshing Task Display. Total Tasks: " + activeTasks.Count());
+		array<SCR_BaseTask> outTasks = new array<SCR_BaseTask>();
+		taskManager.GetTasks(outTasks);
 		
-		foreach (SCR_StalkerTask task : activeTasks)
+		Print("PDA [TASKS TAB] Active UI Refresh:");
+		
+		foreach (SCR_BaseTask vanillaTask : outTasks)
 		{
-			string status = "[ IN PROGRESS ]";
-			if (task.m_bIsCompleted) status = "[ COMPLETED ]";
-			
-			Print("  Task: " + task.m_sTaskName + " " + status + " - Reward: " + task.m_iRewardRU + " RU");
+			SCR_StalkerBaseTask stalkerTask = SCR_StalkerBaseTask.Cast(vanillaTask);
+			if (stalkerTask)
+			{
+				string status = "[ IN PROGRESS ]";
+				if (stalkerTask.GetTaskState() == SCR_TaskState.FINISHED) status = "[ COMPLETED ]";
+				
+				Print("  [PDA UI] " + stalkerTask.GetTitle() + " " + status + " - Reward: " + stalkerTask.GetRewardRU() + " RU");
+			}
 		}
 	}
 }
