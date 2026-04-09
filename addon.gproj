@@ -1,0 +1,9 @@
+{
+  "GameProject": {
+    "ProjectName": "Stalker_Anomalies_Emissions",
+    "GUID": "1A2B3C4D5E6F7G8H",
+    "Dependencies": {
+      "58D0FB3206B6F859": "ArmaReforger"
+    }
+  }
+}
