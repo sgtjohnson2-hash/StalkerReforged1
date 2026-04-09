@@ -13,6 +13,9 @@ class SCR_StalkerBaseTask : SCR_BaseTask
 	
 	[Attribute("0", desc: "Task type mapping")]
 	protected EStalkerTaskType m_eTaskType;
+	
+	// Track the specific enemy or item this task revolves around
+	protected IEntity m_TargetEntity;
 
 	int GetRewardRU()
 	{
@@ -22,6 +25,11 @@ class SCR_StalkerBaseTask : SCR_BaseTask
 	EStalkerTaskType GetStalkerTaskType()
 	{
 		return m_eTaskType;
+	}
+	
+	void SetTargetEntity(IEntity target)
+	{
+		m_TargetEntity = target;
 	}
 
 	// This method hooks into vanilla task completion logic
@@ -59,23 +67,33 @@ class SCR_PDATaskManagerComponent : ScriptComponent
 		super.OnPostInit(owner);
 		s_Instance = this;
 		
-		// Generates a mock task via the vanilla task manager on init
-		GetGame().GetCallqueue().CallLater(GenerateProceduralTask, 2000, false);
+		// Call to request a dynamic mission generation after server spins up
+		GetGame().GetCallqueue().CallLater(RequestDynamicMission, 5000, false);
 	}
 
-	void GenerateProceduralTask()
+	// Native hook to query the Global Mission Manager and map a UI marker
+	void RequestDynamicMission()
 	{
-		// Native Reforger API requires interacting with SCR_BaseTaskManager
-		SCR_BaseTaskManager taskManager = GetTaskManager();
-		if (!taskManager) 
+		SCR_GammaMissionManager missionMgr = SCR_GammaMissionManager.GetInstance();
+		if (!missionMgr) 
 		{
-			Print("Client PDA Error: Vanilla SCR_BaseTaskManager not found in world!");
+			Print("Server Error: No Gamma Mission Manager found in world! Cannot spawn tasks.");
 			return;
 		}
 
-		// In actual Enfusion, we would spawn the Prefab representing the SCR_StalkerBaseTask.
-		// For script representation, we print finding the task manager successfully.
-		Print("Client PDA: Integrated with Vanilla SCR_BaseTaskManager to generate [Hunt Flesh] task.");
+		// Pull the player's current coordinate as the origin for the radial mission spawn
+		IEntity localPlayer = GetGame().GetPlayerManager().GetPlayerControlledEntity(GetGame().GetPlayerController().GetPlayerId());
+		if (!localPlayer) return;
+
+		vector pOrigin = localPlayer.GetOrigin();
+		
+		// Generate the physical map target!
+		missionMgr.CreateDynamicMission(pOrigin, EStalkerTaskType.MUTANT_HUNT);
+		
+		Print("Client PDA: Dynamic Mission created and target spawned coordinates synced to map!");
+		
+		// In a real Enfusion hook, creating the vanilla task automatically plots the HUD mapping.
+		// SCR_MapMarkerManagerComponent mapManager = SCR_MapMarkerManagerComponent.Cast(GetGame().GetGameMode().FindComponent(SCR_MapMarkerManagerComponent));
 		
 		SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
 		if (ui) ui.RefreshTaskList();
