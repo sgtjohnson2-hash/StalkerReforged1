@@ -43,17 +43,34 @@ class SCR_BanditCampComponent : ScriptComponent
 			return;
 		}
 		
-		// 2. Generate Defend Waypoint
-		IEntity waypointEnt = GetGame().SpawnEntityPrefab(Resource.Load(m_sDefendWaypoint), GetGame().GetWorld(), params);
-		AIWaypoint defendWP = AIWaypoint.Cast(waypointEnt);
-		
-		if (defendWP)
+		SCR_StalkerAIBrainComponent brain = SCR_StalkerAIBrainComponent.Cast(GetOwner().FindComponent(SCR_StalkerAIBrainComponent));
+		if (brain)
 		{
-			// Give them a patrol radius
-			defendWP.SetCompletionRadius(m_fCampRadius);
-			aiGroup.AddWaypoint(defendWP);
+			// Connect the Utility AI to the newly spawned group
+			brain.SetGroup(aiGroup);
+			Print("Server: Bandit Camp Hooked natively with UTILITY BRAIN at " + origin.ToString() + ". Autonomous lifecycle begun.");
+		}
+		else
+		{
+			// 2. Fallback: Generate Vanilla Defend Waypoint
+			IEntity waypointEnt = GetGame().SpawnEntityPrefab(Resource.Load(m_sDefendWaypoint), GetGame().GetWorld(), params);
+			AIWaypoint defendWP = AIWaypoint.Cast(waypointEnt);
+			
+			if (defendWP)
+			{
+				// Give them a patrol radius
+				defendWP.SetCompletionRadius(m_fCampRadius);
+				aiGroup.AddWaypoint(defendWP);
+			}
+			Print("Server: Bandit Camp Hooked securely natively at " + origin.ToString() + ". Thugs on static patrol.");
 		}
 		
-		Print("Server: Bandit Camp Hooked securely natively at " + origin.ToString() + ". Thugs patrolling perimeter.");
+		// 3. Optional: Connect Advanced Combat AI
+		SCR_AdvancedCombatAIComponent combatAI = SCR_AdvancedCombatAIComponent.Cast(GetOwner().FindComponent(SCR_AdvancedCombatAIComponent));
+		if (combatAI)
+		{
+			combatAI.SetGroup(aiGroup);
+			Print("Server: Advanced Combat AI Tactical Layer Attached.");
+		}
 	}
 }
