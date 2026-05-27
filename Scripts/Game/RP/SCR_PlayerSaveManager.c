@@ -69,13 +69,19 @@ class SCR_PlayerSaveManager : GenericEntity
 		// Serialize to a custom key-value layout
 		string dataString = "RU:" + ru + ";Hunger:" + hunger + ";Thirst:" + thirst + ";Sleep:" + sleep + ";Rad:" + rad + ";Faction:" + faction;
 
-		// Write to server profile directory safely
+		// Write to server profile directory safely using standard Enforce FileIO handles
 		string savePath = "$profile:PlayerSaves_" + playerName + ".txt";
-		FileIO.OpenFile(savePath, FileMode.WRITE);
-		FileIO.Write(dataString);
-		FileIO.Close();
-
-		Print("Server RP Database: Saved player progress for " + playerName + " at " + savePath);
+		FileIO file = FileIO.OpenFile(savePath, FileMode.WRITE);
+		if (file)
+		{
+			file.Write(dataString);
+			file = null; // Releasing the file handle flushes and closes the file stream
+			Print("Server RP Database: Saved player progress for " + playerName + " at " + savePath);
+		}
+		else
+		{
+			Print("Server RP Database Error: Failed to open save file for " + playerName);
+		}
 	}
 
 	// Server-authoritative load execution for a specific player controller
@@ -94,10 +100,13 @@ class SCR_PlayerSaveManager : GenericEntity
 			return;
 		}
 
-		FileIO.OpenFile(loadPath, FileMode.READ);
-		string loadedData;
-		FileIO.Read(loadedData);
-		FileIO.Close();
+		FileIO file = FileIO.OpenFile(loadPath, FileMode.READ);
+		string loadedData = "";
+		if (file)
+		{
+			file.Read(loadedData);
+			file = null; // Releasing handle closes the file stream
+		}
 
 		if (loadedData == "") return;
 
