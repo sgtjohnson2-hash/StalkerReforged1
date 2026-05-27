@@ -28,15 +28,15 @@ class SCR_FactionBaseComponent : ScriptComponent
 	{
 		super.OnPostInit(owner);
 		
-		// Register globally to the War Manager
-		SCR_FactionWarManager warMgr = SCR_FactionWarManager.GetInstance();
-		if (warMgr) warMgr.RegisterBase(this);
-		
-		// Establish initial defenses
-		GetGame().GetCallqueue().CallLater(EstablishDefenses, 5000, false);
-		
-		// Run a slow, continuous mathematical physics check for capture influence
-		GetGame().GetCallqueue().CallLater(EvaluateCapturePhysics, 15000, true);
+		// Stronghold capture and garrison logic must run exclusively on the server (authority)
+		if (Replication.IsServer())
+		{
+			// Establish initial defenses
+			GetGame().GetCallqueue().CallLater(EstablishDefenses, 5000, false);
+			
+			// Run a slow, continuous mathematical physics check for capture influence
+			GetGame().GetCallqueue().CallLater(EvaluateCapturePhysics, 15000, true);
+		}
 	}
 
 	string GetControllingFaction()
@@ -46,10 +46,16 @@ class SCR_FactionBaseComponent : ScriptComponent
 
 	void EstablishDefenses()
 	{
+		if (!Replication.IsServer()) return;
+
+		// Defer registration to here to avoid race conditions!
+		SCR_FactionWarManager warMgr = SCR_FactionWarManager.GetInstance();
+		if (warMgr) warMgr.RegisterBase(this);
+
 		// Wipe out any existing garrison logically if the base flipped
 		if (m_CurrentGarrison)
 		{
-			SCR_EntityHelper.DeleteEntityAndChildren(m_CurrentGarrison);
+			RplComponent.DeleteRplEntity(m_CurrentGarrison);
 			m_CurrentGarrison = null;
 		}
 
@@ -81,34 +87,31 @@ class SCR_FactionBaseComponent : ScriptComponent
 			}
 		}
 		
-		Print("FW: Base established defenses for Faction " + m_sControllingFaction + " at " + origin.ToString());
+		Print("Server: FW: Base established defenses for Faction " + m_sControllingFaction + " at " + origin.ToString());
 	}
 
 	protected void EvaluateCapturePhysics()
 	{
-		// Native query inside the Capture Radius to find any enemy FactionAffiliationComponents
-		// For simplicity in the script outline, we'll pseudo-replicate the search.
-		// In a live physical engine block, this uses GetGame().GetWorld().QueryEntitiesBySphere()
+		if (!Replication.IsServer()) return;
 		
+		// In a live physical engine block, this uses GetGame().GetWorld().QueryEntitiesBySphere()
 		// Placeholder for logic execution: 
 		// If another faction's entity array heavily outnumbers the controlling faction's array, flip the state.
-		
-		/*
-		int ussrCount, usCount, fiaCount = 0;
-		// physics trace logic mapping counts to the base variables
-		// if (usCount > 4 && ussrCount == 0) FlipBase("US");
-		*/
 	}
 	
 	void TriggerFlipBase(string overridingFaction)
 	{
+		if (!Replication.IsServer()) return;
 		if (m_sControllingFaction == overridingFaction) return;
 		
-		Print("FW: BASE CAPTURED! Territory has flipped from " + m_sControllingFaction + " to " + overridingFaction);
+		Print("Server: FW: BASE CAPTURED! Territory has flipped from " + m_sControllingFaction + " to " + overridingFaction);
 		
 		// Update Network/PDA
-		SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-		if (ui) ui.ReceiveMessage("General Network", "Territory shifts! The " + overridingFaction + " have seized a new sector!");
+		SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+		if (network)
+		{
+			network.SendNetworkMessage("Territory shifts! The " + overridingFaction + " have seized a new sector!", "General Network");
+		}
 
 		m_sControllingFaction = overridingFaction;
 		EstablishDefenses();

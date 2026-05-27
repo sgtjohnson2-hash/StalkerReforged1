@@ -22,6 +22,12 @@ class SCR_BanditQRFManager : GenericEntity
 		return s_Instance;
 	}
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
@@ -33,11 +39,14 @@ class SCR_BanditQRFManager : GenericEntity
 		if (!m_aActiveCamps.Contains(camp))
 		{
 			m_aActiveCamps.Insert(camp);
+			Print("Server: SCR_BanditQRFManager: Registered camp to global pool.");
 		}
 	}
 
 	void DispatchMotorizedBandits(vector targetZone)
 	{
+		if (!Replication.IsServer()) return;
+		
 		// Force QRF to spawn physically from an established base
 		if (m_aActiveCamps.Count() == 0)
 		{
@@ -49,7 +58,7 @@ class SCR_BanditQRFManager : GenericEntity
 		SCR_BanditCampComponent dispatchCamp = m_aActiveCamps[0];
 		vector spawnPos = dispatchCamp.GetOwner().GetOrigin();
 		
-		// Adjust truck spawn slightly so it doesn't crush the garrisoned guards
+		// Adjust UAZ spawn slightly so it doesn't crush the garrisoned guards
 		spawnPos[0] = spawnPos[0] + 15;
 
 		// 2. Physical Object Spawning
@@ -64,14 +73,13 @@ class SCR_BanditQRFManager : GenericEntity
 			return;
 		}
 
-		// 3. Crew Injection
+		// 3. Crew Injection & Compartment Boarding
 		IEntity groupEntity = GetGame().SpawnEntityPrefab(Resource.Load(m_sBanditGroupPrefab), GetGame().GetWorld(), params);
 		SCR_AIGroup aiGroup = SCR_AIGroup.Cast(groupEntity);
 		if (!aiGroup) return;
 
-		// Move AI into vehicle
-		// Done natively by CompartmentAccessComponent in actual engine, proxy wrapper for conceptual layout.
-		Print("Server: Bandit Motorized Transport spawned securely 800 meters from action! Bandits boarding truck.");
+		BoardGroupIntoVehicle(aiGroup, truck);
+		Print("Server: Bandit Motorized Transport spawned! Bandits boarded vehicle dynamically.");
 		
 		// 4. Generate Get-Out Waypoint inside the Hotzone
 		EntitySpawnParams wpParams = new EntitySpawnParams();
@@ -83,7 +91,7 @@ class SCR_BanditQRFManager : GenericEntity
 		
 		if (qrfWP && aiGroup)
 		{
-			qrfWP.SetCompletionRadius(50); // Will jump out immediately near the hotzone and engage as infantry
+			qrfWP.SetCompletionRadius(50); // Dismount target
 			aiGroup.AddWaypoint(qrfWP);
 		}
 		
@@ -93,8 +101,25 @@ class SCR_BanditQRFManager : GenericEntity
 		SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
 		if (network)
 		{
-			SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-			if (ui) ui.ReceiveMessage("Renegade Radio", "We hear gunshots. Mounting up and heading over there now.");
+			network.SendNetworkMessage("We hear gunshots. Mounting up and heading over there now.", "Renegade Radio");
+		}
+	}
+	
+	// Helper to board group members into compartment slots natively
+	protected void BoardGroupIntoVehicle(SCR_AIGroup aiGroup, IEntity vehicle)
+	{
+		if (!aiGroup || !vehicle) return;
+		
+		array<IEntity> members = new array<IEntity>();
+		aiGroup.GetMembers(members);
+		
+		foreach (IEntity member : members)
+		{
+			CompartmentAccessComponent compartmentAccess = CompartmentAccessComponent.Cast(member.FindComponent(CompartmentAccessComponent));
+			if (compartmentAccess)
+			{
+				compartmentAccess.MoveInVehicle(vehicle);
+			}
 		}
 	}
 }

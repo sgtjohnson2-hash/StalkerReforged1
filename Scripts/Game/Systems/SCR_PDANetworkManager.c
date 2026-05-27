@@ -21,17 +21,27 @@ class SCR_PDANetworkManager : GenericEntity
 		return s_Instance;
 	}
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
 		s_Instance = this;
 		
-		// Start ambient network loop for random chatter
-		GetGame().GetCallqueue().CallLater(BroadcastAmbientMessage, m_fAmbientMessageInterval * 1000, true);
+		// Run loops exclusively on the server (authority)
+		if (Replication.IsServer())
+		{
+			GetGame().GetCallqueue().CallLater(BroadcastAmbientMessage, m_fAmbientMessageInterval * 1000, true);
+		}
 	}
 
 	void BroadcastAmbientMessage()
 	{
+		if (!Replication.IsServer()) return;
 		if (m_aAmbientMessages.Count() == 0) return;
 		
 		int randomIndex = Math.RandomInt(0, m_aAmbientMessages.Count());
@@ -40,9 +50,11 @@ class SCR_PDANetworkManager : GenericEntity
 		SendNetworkMessage(msg, "Network Channel");
 	}
 	
-	// Called by character death scripts (REAL AI death tracking)
+	// Called by character death scripts on the server
 	void OnCharacterDeath(IEntity victim, IEntity killer, string deathCause)
 	{
+		if (!Replication.IsServer()) return;
+		
 		string victimName = "Unknown Stalker";
 		
 		// Try to extract name from character identity
@@ -66,19 +78,28 @@ class SCR_PDANetworkManager : GenericEntity
 		SendNetworkMessage(msg, "Grim Reaper Network");
 	}
 
-	// This function can be called by SCR_PlayerBlowoutHandlerComponent or the Emission GameMode
 	void BroadcastBlowoutWarning()
 	{
+		if (!Replication.IsServer()) return;
+		
 		string msg = "WARNING: Massive energy spike detected. An emission is imminent. Find deep cover immediately!";
 		SendNetworkMessage(msg, "EMERGENCY BROADCAST");
 	}
 
-	protected void SendNetworkMessage(string text, string sender)
+	void SendNetworkMessage(string text, string sender)
 	{
-		// Native print for debugging
-		Print("[PDA] " + sender + ": " + text);
+		Print("[PDA Server] " + sender + ": " + text);
 
-		// If a UI manager exists, dispatch the text to it
+		if (Replication.IsServer())
+		{
+			// Replicate to all clients via RPC
+			Rpc(RpcDo_ClientReceiveMessage, sender, text);
+		}
+	}
+	
+	[RplRpc(RplChannel.Reliable, RplRcver.Broadcast)]
+	protected void RpcDo_ClientReceiveMessage(string sender, string text)
+	{
 		SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
 		if (ui)
 		{

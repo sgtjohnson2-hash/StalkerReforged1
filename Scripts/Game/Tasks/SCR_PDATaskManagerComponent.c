@@ -5,7 +5,7 @@ enum EStalkerTaskType
 	FACTION_ASSAULT
 }
 
-// Inherit from Arma Reforger's vanilla SCR_BaseTask so it appears natively on the HUD/Map
+// Inherit from Reforger's base task so it integrates natively
 class SCR_StalkerBaseTask : SCR_BaseTask
 {
 	[Attribute("1000", desc: "Reward in RU upon completion")]
@@ -14,7 +14,6 @@ class SCR_StalkerBaseTask : SCR_BaseTask
 	[Attribute("0", desc: "Task type mapping")]
 	protected EStalkerTaskType m_eTaskType;
 	
-	// Track the specific enemy or item this task revolves around
 	protected IEntity m_TargetEntity;
 
 	int GetRewardRU()
@@ -37,13 +36,35 @@ class SCR_StalkerBaseTask : SCR_BaseTask
 	{
 		super.Finish(showMsg);
 		
-		// When the task finishes natively (e.g. via GameMaster or script), grant player RU
-		Print("Client PDA: Task [" + GetTitle() + "] Completed natively through SCR_BaseTask framework!");
-		
-		SCR_PDATaskManagerComponent mgr = SCR_PDATaskManagerComponent.GetInstance();
-		if (mgr)
+		// Runs on the server to award currency
+		if (Replication.IsServer())
 		{
-			mgr.AddPlayerRuBalance(m_iRewardRU);
+			// Find the assignee or owning player controller
+			IEntity assignee = GetAssignee();
+			if (!assignee)
+			{
+				// Fallback to local controlled player if assignee is not set
+				array<int> players = new array<int>();
+				GetGame().GetPlayerManager().GetPlayers(players);
+				if (players.Count() > 0)
+				{
+					PlayerController pc = GetGame().GetPlayerManager().GetPlayerController(players[0]);
+					if (pc) assignee = pc.GetControlledEntity();
+				}
+			}
+			
+			if (assignee)
+			{
+				PlayerController pc = GetGame().GetPlayerManager().GetPlayerController(GetGame().GetPlayerManager().GetPlayerIdFromControlledEntity(assignee));
+				if (pc)
+				{
+					SCR_PDATaskManagerComponent mgr = SCR_PDATaskManagerComponent.Cast(pc.FindComponent(SCR_PDATaskManagerComponent));
+					if (mgr)
+					{
+						mgr.AddPlayerRuBalance(m_iRewardRU);
+					}
+				}
+			}
 		}
 	}
 }
@@ -54,25 +75,39 @@ class SCR_PDATaskManagerComponentClass : ScriptComponentClass
 
 class SCR_PDATaskManagerComponent : ScriptComponent
 {
-	protected static SCR_PDATaskManagerComponent s_Instance;
+	[RplProp()]
 	protected int m_iPlayerRU = 0;
 
+	// Fetches the dynamic instance specific to the local player controller ( multiplayer safe )
 	static SCR_PDATaskManagerComponent GetInstance()
 	{
-		return s_Instance;
+		PlayerController pc = GetGame().GetPlayerController();
+		if (!pc) return null;
+		return SCR_PDATaskManagerComponent.Cast(pc.FindComponent(SCR_PDATaskManagerComponent));
 	}
 
 	override void OnPostInit(IEntity owner)
 	{
 		super.OnPostInit(owner);
-		s_Instance = this;
 		
-		// Call to request a dynamic mission generation after server spins up
-		GetGame().GetCallqueue().CallLater(RequestDynamicMission, 5000, false);
+		// If running on a client controller, request a dynamic mission after load
+		if (Replication.IsClient())
+		{
+			GetGame().GetCallqueue().CallLater(RequestDynamicMission, 5000, false);
+		}
 	}
 
-	// Native hook to query the Global Mission Manager and map a UI marker
+	// Client calls this to request a dynamic mission, which triggers a server RPC
 	void RequestDynamicMission()
+	{
+		if (Replication.IsClient())
+		{
+			Rpc(RpcServer_RequestDynamicMission);
+		}
+	}
+	
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcServer_RequestDynamicMission()
 	{
 		SCR_GammaMissionManager missionMgr = SCR_GammaMissionManager.GetInstance();
 		if (!missionMgr) 
@@ -81,28 +116,27 @@ class SCR_PDATaskManagerComponent : ScriptComponent
 			return;
 		}
 
-		// Pull the player's current coordinate as the origin for the radial mission spawn
-		IEntity localPlayer = GetGame().GetPlayerManager().GetPlayerControlledEntity(GetGame().GetPlayerController().GetPlayerId());
-		if (!localPlayer) return;
+		PlayerController pc = PlayerController.Cast(GetOwner());
+		if (!pc) return;
 
-		vector pOrigin = localPlayer.GetOrigin();
+		IEntity controlledChar = pc.GetControlledEntity();
+		if (!controlledChar) return;
+
+		vector pOrigin = controlledChar.GetOrigin();
 		
-		// Generate the physical map target! (Replaced Mutant Hunt with Faction Assault)
+		// Generate map target on the server
 		missionMgr.CreateDynamicMission(pOrigin, EStalkerTaskType.FACTION_ASSAULT);
 		
-		Print("Client PDA: Dynamic Mission created and target spawned coordinates synced to map!");
-		
-		// In a real Enfusion hook, creating the vanilla task automatically plots the HUD mapping.
-		// SCR_MapMarkerManagerComponent mapManager = SCR_MapMarkerManagerComponent.Cast(GetGame().GetGameMode().FindComponent(SCR_MapMarkerManagerComponent));
-		
-		SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-		if (ui) ui.RefreshTaskList();
+		Print("Server: Dynamic Mission generated for player " + pc.GetPlayerId());
 	}
 	
 	void AddPlayerRuBalance(int amount)
 	{
+		if (!Replication.IsServer()) return;
+		
 		m_iPlayerRU += amount;
-		Print("Client PDA: Balance Updated. Total RU: " + m_iPlayerRU);
+		Replication.BumpMe();
+		Print("Server: Balance Updated for player. Total RU: " + m_iPlayerRU);
 	}
 	
 	int GetPlayerRuBalance()

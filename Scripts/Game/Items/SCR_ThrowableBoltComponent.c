@@ -7,18 +7,16 @@ class SCR_ThrowableBoltComponent : ScriptComponent
 	override void OnPostInit(IEntity owner)
 	{
 		super.OnPostInit(owner);
-		
-		// When the bolt is thrown and hits the ground, it triggers anomalies without damaging players.
-		// Reforger uses SCR_ConsumableItemComponent for grenades. 
-		// Here we would hook into OnHit event to trigger an EOnFrame or similar anomaly response.
 	}
 	
-	// A mock up of the collision callback
+	// Server-authoritative physics collision callback
 	void OnCollision(IEntity owner, IEntity hitEntity, vector hitPos)
 	{
-		Print("Bolt hit surface at " + hitPos.ToString() + ", checking for anomalies to visually trigger them...");
+		if (!Replication.IsServer()) return;
 		
-		// This uses QueryEntitiesBySphere to find an anomaly and force its PFX to show
+		Print("Server: Bolt hit surface at " + hitPos.ToString() + ", checking for anomalies...");
+		
+		// Perform sphere query to find and visually activate anomalies
 		GetGame().GetWorld().QueryEntitiesBySphere(hitPos, 5.0, QueryForceTrigger, null, EQueryEntitiesFlags.ALL);
 	}
 
@@ -27,8 +25,8 @@ class SCR_ThrowableBoltComponent : ScriptComponent
 		SCR_AnomalyComponent anomaly = SCR_AnomalyComponent.Cast(ent.FindComponent(SCR_AnomalyComponent));
 		if (anomaly)
 		{
-			Print("Bolt triggered anomaly at " + ent.GetOrigin().ToString());
-			// Force the visual trigger of the anomaly without applying damage
+			Print("Server: Bolt triggered anomaly at " + ent.GetOrigin().ToString());
+			// Trigger anomaly visual burst natively on clients from the server here
 		}
 		return true;
 	}

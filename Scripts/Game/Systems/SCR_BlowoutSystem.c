@@ -10,50 +10,87 @@ class SCR_BlowoutSystem : GenericEntity
 
 	protected TimeAndWeatherManagerEntity m_WeatherManager;
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
 		
-		// Run only on server
-		if (!GetGame().GetDefaultScriptInvoker(ScriptInvoker.GetDefaultScriptInvokerEvent(DefaultScriptInvokerEvent.POST_INIT))) return;
+		// Run only on Server
+		if (!Replication.IsServer()) return;
 
 		GetGame().GetCallqueue().CallLater(StartBlowoutPhase1, m_fBlowoutInterval * 1000, false);
-		
 		m_WeatherManager = GetGame().GetTimeAndWeatherManager();
 	}
 
 	protected void StartBlowoutPhase1()
 	{
-		Print("SCR_BlowoutSystem: Phase 1 (Warning) Started");
+		Print("Server: SCR_BlowoutSystem: Phase 1 (Warning) Started");
 		
 		if (m_WeatherManager)
 		{
-			// Darken skies, increase overcast
+			// Darken skies, increase overcast, rain, and fog on server (replicates automatically)
 			m_WeatherManager.SetOvercast(1.0);
 			m_WeatherManager.SetRainState(1.0);
 			m_WeatherManager.SetFogState(0.5);
 		}
 		
-		// RPC to clients to play sirens
-		Rpc(RpcDo_ClientWarningPhase);
+		// Notify all players (warning sirens, chat notification)
+		array<int> playerIds = new array<int>();
+		GetGame().GetPlayerManager().GetPlayers(playerIds);
+		foreach (int playerId : playerIds)
+		{
+			IEntity playerChar = GetGame().GetPlayerManager().GetPlayerControlledEntity(playerId);
+			if (playerChar)
+			{
+				SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.Cast(playerChar.FindComponent(SCR_PlayerBlowoutHandlerComponent));
+				if (handler) handler.OnWarningPhase();
+			}
+		}
 		
-		GetGame().GetCallqueue().CallLater(StartBlowoutPhase2, 120000, false); // 2 minutes until peak
+		// Trigger active warning PDA network messages
+		SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+		if (network)
+		{
+			network.BroadcastBlowoutWarning();
+		}
+		
+		GetGame().GetCallqueue().CallLater(StartBlowoutPhase2, 120000, false); // 2 minutes warning
 	}
 
 	protected void StartBlowoutPhase2()
 	{
-		Print("SCR_BlowoutSystem: Phase 2 (Peak) Started");
+		Print("Server: SCR_BlowoutSystem: Phase 2 (Peak) Started");
 		
-		// Extreme weather shift (red skies placeholder logic here)
+		if (m_WeatherManager)
+		{
+			m_WeatherManager.SetFogState(0.9);
+			m_WeatherManager.SetRainState(1.0);
+		}
 		
-		Rpc(RpcDo_ClientPeakPhase);
+		// Notify all players to begin damage checks and play rumbles
+		array<int> playerIds = new array<int>();
+		GetGame().GetPlayerManager().GetPlayers(playerIds);
+		foreach (int playerId : playerIds)
+		{
+			IEntity playerChar = GetGame().GetPlayerManager().GetPlayerControlledEntity(playerId);
+			if (playerChar)
+			{
+				SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.Cast(playerChar.FindComponent(SCR_PlayerBlowoutHandlerComponent));
+				if (handler) handler.OnPeakPhase();
+			}
+		}
 		
-		GetGame().GetCallqueue().CallLater(EndBlowout, 60000, false); // 1 min peak duration
+		GetGame().GetCallqueue().CallLater(EndBlowout, 60000, false); // 1 minute peak duration
 	}
 
 	protected void EndBlowout()
 	{
-		Print("SCR_BlowoutSystem: Blowout Ended");
+		Print("Server: SCR_BlowoutSystem: Blowout Ended");
 		
 		if (m_WeatherManager)
 		{
@@ -62,33 +99,20 @@ class SCR_BlowoutSystem : GenericEntity
 			m_WeatherManager.SetFogState(0.0);
 		}
 		
-		Rpc(RpcDo_ClientEndPhase);
+		// Notify all players to calm atmospheric effects and end damage checks
+		array<int> playerIds = new array<int>();
+		GetGame().GetPlayerManager().GetPlayers(playerIds);
+		foreach (int playerId : playerIds)
+		{
+			IEntity playerChar = GetGame().GetPlayerManager().GetPlayerControlledEntity(playerId);
+			if (playerChar)
+			{
+				SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.Cast(playerChar.FindComponent(SCR_PlayerBlowoutHandlerComponent));
+				if (handler) handler.OnEndPhase();
+			}
+		}
 
 		// Queue next blowout
 		GetGame().GetCallqueue().CallLater(StartBlowoutPhase1, m_fBlowoutInterval * 1000, false);
-	}
-
-	[RplRpc(RplChannel.Reliable, RplRcver.Broadcast)]
-	protected void RpcDo_ClientWarningPhase()
-	{
-		// Play siren sound from player handler
-		SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.GetInstance();
-		if (handler) handler.OnWarningPhase();
-	}
-
-	[RplRpc(RplChannel.Reliable, RplRcver.Broadcast)]
-	protected void RpcDo_ClientPeakPhase()
-	{
-		// Play massive blowout rumble, start damage check
-		SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.GetInstance();
-		if (handler) handler.OnPeakPhase();
-	}
-
-	[RplRpc(RplChannel.Reliable, RplRcver.Broadcast)]
-	protected void RpcDo_ClientEndPhase()
-	{
-		// Restore normal PFX
-		SCR_PlayerBlowoutHandlerComponent handler = SCR_PlayerBlowoutHandlerComponent.GetInstance();
-		if (handler) handler.OnEndPhase();
 	}
 }

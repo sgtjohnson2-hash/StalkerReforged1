@@ -17,16 +17,24 @@ class SCR_BanditCampComponent : ScriptComponent
 	{
 		super.OnPostInit(owner);
 		
-		// Register this camp to the global pool for QRF spawning
-		SCR_BanditQRFManager qrfMgr = SCR_BanditQRFManager.GetInstance();
-		if (qrfMgr) qrfMgr.RegisterCamp(this);
-		
-		// Spawn the Bandit garrison troops a few seconds after server init to ensure mapping is complete
-		GetGame().GetCallqueue().CallLater(EstablishBanditCamp, 4000, false);
+		// Setup and AI generation must occur exclusively on the server (authority)
+		if (Replication.IsServer())
+		{
+			GetGame().GetCallqueue().CallLater(EstablishBanditCamp, 4000, false);
+		}
 	}
 
 	protected void EstablishBanditCamp()
 	{
+		if (!Replication.IsServer()) return;
+
+		// Deferring registration to here resolves the singleton initialization order race condition!
+		SCR_BanditQRFManager qrfMgr = SCR_BanditQRFManager.GetInstance();
+		if (qrfMgr)
+		{
+			qrfMgr.RegisterCamp(this);
+		}
+		
 		vector origin = GetOwner().GetOrigin();
 		
 		// 1. Spawn the Group Prefab exactly at the Component's coordinate
@@ -48,7 +56,7 @@ class SCR_BanditCampComponent : ScriptComponent
 		{
 			// Connect the Utility AI to the newly spawned group
 			brain.SetGroup(aiGroup);
-			Print("Server: Bandit Camp Hooked natively with UTILITY BRAIN at " + origin.ToString() + ". Autonomous lifecycle begun.");
+			Print("Server: Bandit Camp Hooked with UTILITY BRAIN at " + origin.ToString() + ". Autonomous lifecycle begun.");
 		}
 		else
 		{
@@ -58,14 +66,13 @@ class SCR_BanditCampComponent : ScriptComponent
 			
 			if (defendWP)
 			{
-				// Give them a patrol radius
 				defendWP.SetCompletionRadius(m_fCampRadius);
 				aiGroup.AddWaypoint(defendWP);
 			}
 			Print("Server: Bandit Camp Hooked securely natively at " + origin.ToString() + ". Thugs on static patrol.");
 		}
 		
-		// 3. Optional: Connect Advanced Combat AI
+		// 3. Connect Advanced Combat AI
 		SCR_AdvancedCombatAIComponent combatAI = SCR_AdvancedCombatAIComponent.Cast(GetOwner().FindComponent(SCR_AdvancedCombatAIComponent));
 		if (combatAI)
 		{

@@ -5,6 +5,7 @@ class SCR_PlayerFactionManagerComponentClass : ScriptComponentClass
 class SCR_PlayerFactionManagerComponent : ScriptComponent
 {
 	[Attribute("CIV", desc: "Starting Faction Key for the player")]
+	[RplProp()]
 	protected string m_sCurrentFaction;
 
 	protected FactionAffiliationComponent m_FactionAffiliation;
@@ -14,34 +15,55 @@ class SCR_PlayerFactionManagerComponent : ScriptComponent
 		super.OnPostInit(owner);
 		m_FactionAffiliation = FactionAffiliationComponent.Cast(owner.FindComponent(FactionAffiliationComponent));
 		
-		if (m_FactionAffiliation)
+		if (m_FactionAffiliation && Replication.IsServer())
 		{
-			// Initialize Loner/Freelance inherently at round start
-			JoinFaction(m_sCurrentFaction);
+			// Initialize starting faction on the server
+			ProcessJoinFactionServer(m_sCurrentFaction);
 		}
 	}
 
 	void JoinFaction(string factionKey)
 	{
+		if (Replication.IsClient())
+		{
+			Rpc(RpcServer_JoinFaction, factionKey);
+		}
+		else
+		{
+			ProcessJoinFactionServer(factionKey);
+		}
+	}
+
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcServer_JoinFaction(string factionKey)
+	{
+		ProcessJoinFactionServer(factionKey);
+	}
+
+	protected void ProcessJoinFactionServer(string factionKey)
+	{
 		if (!m_FactionAffiliation) return;
 
-		// Requires native mapping through FactionManager, conceptually passing string keys to backend system
 		Faction faction = GetGame().GetFactionManager().GetFactionByKey(factionKey);
 		if (faction)
 		{
 			m_FactionAffiliation.SetAffiliatedFaction(faction);
 			m_sCurrentFaction = factionKey;
+			Replication.BumpMe();
 			
-			string factionName = "";
+			string factionName = factionKey;
 			if (factionKey == "US") factionName = "NATO MERCENARIES";
 			else if (factionKey == "USSR") factionName = "SOVIET MILITARY";
 			else if (factionKey == "FIA") factionName = "RENEGADE BANDITS";
 			else if (factionKey == "CIV") factionName = "FREELANCE LONER";
 			
-			Print("Client: Enlistment contract approved. You are now formally affiliated with " + factionName);
+			Print("Server: Enlistment contract approved for Player. Affiliation: " + factionName);
 			
-			SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-			if (ui) ui.ReceiveMessage("Network", "Your PDA identification tags have been wiped and remapped to " + factionName + " clearance.");
+			SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+			if (network)
+			{
+				network.SendNetworkMessage("PDA identification tags wiped and remapped to " + factionName + " clearance.", "Network");
+			}
 		}
 	}
 

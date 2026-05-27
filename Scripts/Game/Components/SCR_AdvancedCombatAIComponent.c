@@ -43,49 +43,62 @@ class SCR_AdvancedCombatAIComponent : ScriptComponent
 		super.OnPostInit(owner);
 		m_Group = SCR_AIGroup.Cast(owner);
 		
-		if (!m_Group) return; // Waits for SetGroup if attached to spawner
-
-		StartTactics();
+		if (m_Group && Replication.IsServer())
+		{
+			StartTactics();
+		}
 	}
 	
 	void SetGroup(SCR_AIGroup group)
 	{
 		m_Group = group;
-		StartTactics();
+		if (Replication.IsServer())
+		{
+			StartTactics();
+		}
 	}
 	
 	protected void StartTactics()
 	{
+		if (!Replication.IsServer()) return;
+
 		// Tactical evaluation tick logic (3 times a second during combat)
 		GetGame().GetCallqueue().CallLater(TacticalThink, 333, true);
+		
+		// Active Threat scanning loop on the server every 2 seconds
+		GetGame().GetCallqueue().CallLater(ScanThreats, 2000, true);
 		
 		// Decay suppression slowly
 		GetGame().GetCallqueue().CallLater(DecaySuppression, 1000, true);
 	}
 
-	// Simulated Hook: Should be called by Arma's projectile system when a bullet flies near this entity
 	void OnBulletSnap(vector trajectory)
 	{
+		if (!Replication.IsServer()) return;
+
 		m_fCurrentSuppression += m_fSuppressionPerBullet;
 		if (m_fCurrentSuppression > m_fMaxSuppression)
 			m_fCurrentSuppression = m_fMaxSuppression;
 	}
 
-	// Hook: To be called when the vanilla AI perception system spots an enemy
 	void OnThreatSpotted(IEntity threat)
 	{
+		if (!Replication.IsServer()) return;
+
 		if (m_KnownThreat != threat)
 		{
 			m_KnownThreat = threat;
-			m_fTimeThreatFirstSpotted = GetGame().GetWorld().GetWorldTime() / 1000.0; // Current time in seconds
+			m_fTimeThreatFirstSpotted = GetGame().GetWorld().GetWorldTime() / 1000.0;
 			m_bHasProcessedOODA = false;
 			
-			Print("Advanced AI: Threat Spotted. Beginning Observe -> Orient -> Decide OODA Loop buffer.");
+			Print("Server Advanced AI: Threat Spotted. OODA Observe -> Orient sequence initialized.");
 		}
 	}
 
 	protected void DecaySuppression()
 	{
+		if (!Replication.IsServer()) return;
+
 		if (m_fCurrentSuppression > 0)
 		{
 			m_fCurrentSuppression -= m_fSuppressionDecayRate;
@@ -93,17 +106,45 @@ class SCR_AdvancedCombatAIComponent : ScriptComponent
 		}
 	}
 
+	protected void ScanThreats()
+	{
+		if (!m_Group || !Replication.IsServer()) return;
+		
+		// Query nearby radius to find active hostile entities
+		vector center = m_Group.GetOrigin();
+		GetGame().GetWorld().QueryEntitiesBySphere(center, 150.0, CheckEnemyEntity, null, EQueryEntitiesFlags.ALL);
+	}
+
+	protected bool CheckEnemyEntity(IEntity ent)
+	{
+		if (!ent || ent == m_Group) return true;
+		
+		// If it's a character, evaluate faction hostilities
+		FactionAffiliationComponent factionAff = FactionAffiliationComponent.Cast(ent.FindComponent(FactionAffiliationComponent));
+		if (factionAff)
+		{
+			Faction enemyFaction = factionAff.GetAffiliatedFaction();
+			Faction groupFaction = m_Group.GetFaction();
+			
+			if (enemyFaction && groupFaction && enemyFaction.IsEnemy(groupFaction))
+			{
+				// Trigger the threat spotting OODA logic
+				OnThreatSpotted(ent);
+				return false; // Threat spotted, terminate search
+			}
+		}
+		return true;
+	}
+
 	protected void TacticalThink()
 	{
-		if (!m_Group || !m_KnownThreat) return;
+		if (!m_Group || !m_KnownThreat || !Replication.IsServer()) return;
 
 		// 1. Evaluate Psychological Suppression State
 		if (m_fCurrentSuppression >= m_fMaxSuppression * 0.8)
 		{
-			// Heavily Suppressed: The AI's brain locks up prioritizing survival over offense.
-			// Native Enfusion implementation would lower stance to PRONE and severly penalize aim error.
-			Print("Advanced AI: " + m_Group.ToString() + " is SUPPRESSED! Cowering in cover.");
-			return; // Skip combat tactics, they are pinned!
+			Print("Server Advanced AI: Group is heavily suppressed, freezing tactical maneuvres.");
+			return; 
 		}
 
 		// 2. OODA Loop Processing Delay
@@ -112,47 +153,35 @@ class SCR_AdvancedCombatAIComponent : ScriptComponent
 			float currentTime = GetGame().GetWorld().GetWorldTime() / 1000.0;
 			float elapsedTime = currentTime - m_fTimeThreatFirstSpotted;
 			
-			// If we are under fire ourselves, OODA delay INCREASES (Stress tunnel vision)
 			float effectiveReactionDelay = m_fBaseReactionTime + (m_fCurrentSuppression / 50.0);
 			
 			if (elapsedTime >= effectiveReactionDelay)
 			{
 				m_bHasProcessedOODA = true;
-				Print("Advanced AI: OODA Loop Complete. ACT phase begun! Returning fire.");
+				Print("Server Advanced AI: OODA Loop Complete. Returning fire.");
 				EvaluateSquadDynamics();
 			}
 			return;
 		}
-
-		// (The AI natively handles pulling the trigger via vanilla Arma scripts from this point)
 	}
 
 	protected void EvaluateSquadDynamics()
 	{
-		// Asymmetric Bounding Overwatch: Assigning Roles mathematically
-		// If we do not have a role, we dynamically pick one based on our distance/state
-		
 		if (m_CurrentRole != ESquadCombatRole.UNASSIGNED) return;
 		
-		// For simplicity in this script layer, we randomly roll roles, 
-		// but typically we'd elect the closest unit as Maneuver and the farthest in heavy cover as Base of Fire.
 		if (Math.RandomFloat01() > 0.5)
 		{
 			m_CurrentRole = ESquadCombatRole.BASE_OF_FIRE;
-			Print("Advanced AI: Role Assigned -> BASE OF FIRE. Providing suppressive cover.");
-			
-			// Inject Defend Waypoint
+			Print("Server Advanced AI: Role Assigned -> BASE OF FIRE. Providing cover.");
 			AssignWaypointNatively(m_sDefendWaypoint, m_Group.GetOrigin());
 		}
 		else
 		{
 			m_CurrentRole = ESquadCombatRole.MANEUVER;
 			
-			// Calculate Flanking Vector
 			vector targetPos = m_KnownThreat.GetOrigin();
 			vector myPos = m_Group.GetOrigin();
 			
-			// Vector Math: Get direction to target, rotate 90 degrees around Y axis (Up) to find the flank
 			vector dir = vector.Direction(myPos, targetPos);
 			dir.Normalize();
 			
@@ -161,10 +190,9 @@ class SCR_AdvancedCombatAIComponent : ScriptComponent
 			flankDir[1] = 0;
 			flankDir[2] = dir[0];
 			
-			// Push the flank point 30 meters out laterally, and slightly forward
 			vector desiredFlank = myPos + (flankDir * 30.0) + (dir * 10.0);
 			
-			Print("Advanced AI: Role Assigned -> MANEUVER. Pathing to algorithmic side-flank vector.");
+			Print("Server Advanced AI: Role Assigned -> MANEUVER. Moving to flanking vector.");
 			AssignWaypointNatively(m_sMoveWaypoint, desiredFlank);
 		}
 	}

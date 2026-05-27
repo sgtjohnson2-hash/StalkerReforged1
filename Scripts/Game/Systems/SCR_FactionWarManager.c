@@ -25,7 +25,6 @@ class SCR_FactionWarManager : GenericEntity
 	
 	[Attribute("{201F87042C06BD16}Prefabs/AI/Waypoints/AIWaypoint_GetOut.et", UIWidgets.ResourceNamePicker, desc: "Waypoint archetype for dismounting transport")]
 	protected ResourceName m_sGetOutWaypoint;
-
 	
 	[Attribute("{E552DABF3636C2AD}Prefabs/Groups/OPFOR/Group_USSR_RifleSquad.et", UIWidgets.ResourceNamePicker)]
 	protected ResourceName m_sMilitaryAssaultGroup;
@@ -35,13 +34,22 @@ class SCR_FactionWarManager : GenericEntity
 		return s_Instance;
 	}
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
 		s_Instance = this;
 		
-		// Run evaluation every 10 minutes (600000ms)
-		GetGame().GetCallqueue().CallLater(EvaluateGeopolitics, 600000, true);
+		// Run evaluations exclusively on the server (authority)
+		if (Replication.IsServer())
+		{
+			GetGame().GetCallqueue().CallLater(EvaluateGeopolitics, 600000, true);
+		}
 	}
 
 	void RegisterBase(SCR_FactionBaseComponent base)
@@ -49,7 +57,7 @@ class SCR_FactionWarManager : GenericEntity
 		if (!m_aActiveBases.Contains(base))
 		{
 			m_aActiveBases.Insert(base);
-			Print("FW: Registered active base to global matrix.");
+			Print("Server: FW: Registered active base to global matrix.");
 		}
 	}
 
@@ -70,8 +78,9 @@ class SCR_FactionWarManager : GenericEntity
 
 	protected void EvaluateGeopolitics()
 	{
-		Print("FW: Evaluating global faction matrix...");
+		if (!Replication.IsServer()) return;
 		
+		Print("Server: FW: Evaluating global faction matrix...");
 		if (m_aActiveBases.Count() < 2) return;
 		
 		// 1. Pick a random base to LAUNCH the attack
@@ -112,7 +121,6 @@ class SCR_FactionWarManager : GenericEntity
 		// -------------------------------------------------------------
 		if (attackingFaction == "US")
 		{
-			// Math: Spawn helicopter 3500m away, 200m in the air
 			vector origin = targetBase.GetOwner().GetOrigin();
 			float dist = 3500;
 			float angle = Math.RandomFloat(0, Math.PI2);
@@ -131,8 +139,10 @@ class SCR_FactionWarManager : GenericEntity
 			IEntity gunshipCrew = GetGame().SpawnEntityPrefab(Resource.Load(m_sMercAssaultGroup), GetGame().GetWorld(), heliParams);
 			SCR_AIGroup aiGunshipCrew = SCR_AIGroup.Cast(gunshipCrew);
 			
-			if (aiGunshipCrew)
+			if (aiGunshipCrew && gunship)
 			{
+				BoardGroupIntoVehicle(aiGunshipCrew, gunship);
+				
 				EntitySpawnParams wpParamsGunship = new EntitySpawnParams();
 				wpParamsGunship.TransformMode = ETransformMode.WORLD;
 				wpParamsGunship.Transform[3] = targetBase.GetOwner().GetOrigin();
@@ -158,8 +168,10 @@ class SCR_FactionWarManager : GenericEntity
 			IEntity transportSquad = GetGame().SpawnEntityPrefab(Resource.Load(m_sMercAssaultGroup), GetGame().GetWorld(), transportParams);
 			SCR_AIGroup aiTransportSquad = SCR_AIGroup.Cast(transportSquad);
 			
-			if (aiTransportSquad)
+			if (aiTransportSquad && transportHeli)
 			{
+				BoardGroupIntoVehicle(aiTransportSquad, transportHeli);
+				
 				EntitySpawnParams wpParamsTransport = new EntitySpawnParams();
 				wpParamsTransport.TransformMode = ETransformMode.WORLD;
 				wpParamsTransport.Transform[3] = targetBase.GetOwner().GetOrigin();
@@ -168,15 +180,18 @@ class SCR_FactionWarManager : GenericEntity
 				AIWaypoint wpGetOut = AIWaypoint.Cast(wptOut);
 				if (wpGetOut)
 				{
-					wpGetOut.SetCompletionRadius(20); // Get extremely close to the ground/base to deploy troops
+					wpGetOut.SetCompletionRadius(20); // Dismount target
 					aiTransportSquad.AddWaypoint(wpGetOut);
 				}
 			}
 			
-			SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-			if (ui) ui.ReceiveMessage("Network", "Radar spike! A Mercenary 2-Ship formation (Gunship + Transport) is vectoring onto the " + targetBase.GetControllingFaction() + " sector!");
+			SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+			if (network)
+			{
+				network.SendNetworkMessage("Radar spike! A Mercenary 2-Ship formation (Gunship + Transport) is vectoring onto the " + targetBase.GetControllingFaction() + " sector!", "Network");
+			}
 			
-			Print("FW: Mercenary Aerial 2-Ship Assault launched from boundary targeting " + targetBase.GetControllingFaction());
+			Print("Server: FW: Mercenary Aerial 2-Ship Assault launched from boundary targeting " + targetBase.GetControllingFaction());
 			return; // Abort standard ground spawning
 		}
 
@@ -208,10 +223,30 @@ class SCR_FactionWarManager : GenericEntity
 			aiGroup.AddWaypoint(wp);
 		}
 		
-		// Broadcast to players via PDA Simulation
-		SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-		if (ui) ui.ReceiveMessage("Network", "We just saw a " + attackingFaction + " hit squad leaving camp heading towards the " + targetBase.GetControllingFaction() + " sector!");
+		SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+		if (network)
+		{
+			network.SendNetworkMessage("We just saw a " + attackingFaction + " hit squad leaving camp heading towards the " + targetBase.GetControllingFaction() + " sector!", "Network");
+		}
 		
-		Print("FW: Assault Squad launched from " + attackingFaction + " targeting " + targetBase.GetControllingFaction());
+		Print("Server: FW: Assault Squad launched from " + attackingFaction + " targeting " + targetBase.GetControllingFaction());
+	}
+	
+	// Helper to board group members into compartment slots natively
+	protected void BoardGroupIntoVehicle(SCR_AIGroup aiGroup, IEntity vehicle)
+	{
+		if (!aiGroup || !vehicle) return;
+		
+		array<IEntity> members = new array<IEntity>();
+		aiGroup.GetMembers(members);
+		
+		foreach (IEntity member : members)
+		{
+			CompartmentAccessComponent compartmentAccess = CompartmentAccessComponent.Cast(member.FindComponent(CompartmentAccessComponent));
+			if (compartmentAccess)
+			{
+				compartmentAccess.MoveInVehicle(vehicle);
+			}
+		}
 	}
 }

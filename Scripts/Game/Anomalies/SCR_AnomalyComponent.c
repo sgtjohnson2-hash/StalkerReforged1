@@ -21,13 +21,14 @@ class SCR_AnomalyComponent : ScriptComponent
 
 	override void EOnInit(IEntity owner)
 	{
-		// Spawn particle emitters, sounds here based on derived anomaly type
+		super.EOnInit(owner);
 	}
 
 	override void EOnFrame(IEntity owner, float timeSlice)
 	{
-		// Poll for damage in an radius, or use a trigger component if available.
-		// For simplicity, a sphere query can be done:
+		// Spatial queries and tick damage execution must run exclusively on the server (authority)
+		if (!Replication.IsServer()) return;
+		
 		GetGame().GetWorld().QueryEntitiesBySphere(owner.GetOrigin(), m_fTriggerRadius, QueryDamageEntities, null, EQueryEntitiesFlags.ALL);
 	}
 
@@ -35,13 +36,16 @@ class SCR_AnomalyComponent : ScriptComponent
 	{
 		if (!ent) return true;
 		
-		// Apply damage logic to the entity if it is a character or vehicle
-		DamageManagerComponent damageManager = DamageManagerComponent.Cast(ent.FindComponent(DamageManagerComponent));
-		if (damageManager)
+		SCR_CharacterDamageManagerComponent damageManager = SCR_CharacterDamageManagerComponent.Cast(ent.FindComponent(SCR_CharacterDamageManagerComponent));
+		if (damageManager && damageManager.GetHealth() > 0)
 		{
-			// Implement custom event or damage. We pass dummy parameters for the PoC.
-			damageManager.SetHealthScaled(damageManager.GetHealthScaled() - (m_fDamagePerTick * 0.01)); // Simple arbitrary damage simulation
-			OnEntityDamaged(ent);
+			HitZone defaultHZ = damageManager.GetDefaultHitZone();
+			if (defaultHZ)
+			{
+				// Apply tick-rate scaled damage to character default hitzone
+				defaultHZ.Damage(m_fDamagePerTick * 0.1);
+				OnEntityDamaged(ent);
+			}
 		}
 
 		return true;

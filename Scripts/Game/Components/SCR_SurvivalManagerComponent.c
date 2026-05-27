@@ -22,8 +22,13 @@ class SCR_SurvivalManagerComponent : ScriptComponent
 	[Attribute("0.02", desc: "Sleep drain per second")]
 	protected float m_fSleepDrainRate;
 
+	[RplProp()]
 	protected float m_fCurrentHunger;
+	
+	[RplProp()]
 	protected float m_fCurrentThirst;
+	
+	[RplProp()]
 	protected float m_fCurrentSleep;
 
 	protected IEntity m_Owner;
@@ -37,29 +42,41 @@ class SCR_SurvivalManagerComponent : ScriptComponent
 		m_fCurrentThirst = m_fMaxThirst;
 		m_fCurrentSleep = m_fMaxSleep;
 		
-		// Run survival tick every second
-		GetGame().GetCallqueue().CallLater(ProcessSurvivalTick, 1000, true);
+		// Run survival ticks exclusively on the server (authority)
+		if (Replication.IsServer())
+		{
+			GetGame().GetCallqueue().CallLater(ProcessSurvivalTick, 1000, true);
+		}
 	}
 
 	void ConsumeFood(float amount)
 	{
+		if (!Replication.IsServer()) return;
+		
 		m_fCurrentHunger += amount;
 		if (m_fCurrentHunger > m_fMaxHunger) m_fCurrentHunger = m_fMaxHunger;
-		Print("Client: Consumed Food. Hunger: " + m_fCurrentHunger);
+		Replication.BumpMe();
+		Print("Server: Consumed Food. Hunger now: " + m_fCurrentHunger);
 	}
 
 	void ConsumeDrink(float amount)
 	{
+		if (!Replication.IsServer()) return;
+		
 		m_fCurrentThirst += amount;
 		if (m_fCurrentThirst > m_fMaxThirst) m_fCurrentThirst = m_fMaxThirst;
-		Print("Client: Consumed Drink. Thirst: " + m_fCurrentThirst);
+		Replication.BumpMe();
+		Print("Server: Consumed Drink. Thirst now: " + m_fCurrentThirst);
 	}
 	
 	void Rest(float amount)
 	{
+		if (!Replication.IsServer()) return;
+		
 		m_fCurrentSleep += amount;
 		if (m_fCurrentSleep > m_fMaxSleep) m_fCurrentSleep = m_fMaxSleep;
-		Print("Client: Rested. Sleep: " + m_fCurrentSleep);
+		Replication.BumpMe();
+		Print("Server: Rested. Sleep now: " + m_fCurrentSleep);
 	}
 
 	protected void ProcessSurvivalTick()
@@ -74,9 +91,11 @@ class SCR_SurvivalManagerComponent : ScriptComponent
 		if (m_fCurrentHunger < 0) m_fCurrentHunger = 0;
 		if (m_fCurrentThirst < 0) m_fCurrentThirst = 0;
 		if (m_fCurrentSleep < 0) m_fCurrentSleep = 0;
+		
+		Replication.BumpMe();
 
 		// Calculate survival penalties
-		DamageManagerComponent damageManager = DamageManagerComponent.Cast(m_Owner.FindComponent(DamageManagerComponent));
+		SCR_CharacterDamageManagerComponent damageManager = SCR_CharacterDamageManagerComponent.Cast(m_Owner.FindComponent(SCR_CharacterDamageManagerComponent));
 		if (damageManager && damageManager.GetHealth() > 0)
 		{
 			float damageTick = 0;
@@ -90,10 +109,17 @@ class SCR_SurvivalManagerComponent : ScriptComponent
 
 			if (damageTick > 0)
 			{
-				float newHealth = damageManager.GetHealth() - damageTick;
-				if (newHealth < 0) newHealth = 0;
-				Print("Client: Starving/Dehydrated. Took " + damageTick + " damage.");
+				HitZone defaultHZ = damageManager.GetDefaultHitZone();
+				if (defaultHZ)
+				{
+					defaultHZ.Damage(damageTick);
+					Print("Server: Character took " + damageTick + " starvation/dehydration damage.");
+				}
 			}
 		}
 	}
+	
+	float GetHunger() { return m_fCurrentHunger; }
+	float GetThirst() { return m_fCurrentThirst; }
+	float GetSleep() { return m_fCurrentSleep; }
 }

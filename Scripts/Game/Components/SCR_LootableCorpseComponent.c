@@ -14,7 +14,7 @@ class SCR_LootableCorpseComponent : ScriptComponent
 	{
 		super.OnPostInit(owner);
 		
-		// Hook into the native Reforger damage manager to listen for death
+		// Hook into the native damage manager to listen for death
 		SCR_CharacterDamageManagerComponent damageMgr = SCR_CharacterDamageManagerComponent.Cast(owner.FindComponent(SCR_CharacterDamageManagerComponent));
 		if (damageMgr)
 		{
@@ -24,6 +24,9 @@ class SCR_LootableCorpseComponent : ScriptComponent
 
 	protected void OnCorpseStashRoll(IEntity entity)
 	{
+		// Stash discovery and zone heat tracking must occur exclusively on the server (authority)
+		if (!Replication.IsServer()) return;
+
 		// Notify the Military Zone Heat system of a death in the quadrant
 		SCR_ZoneHeatManager heatMgr = SCR_ZoneHeatManager.GetInstance();
 		if (heatMgr)
@@ -31,16 +34,13 @@ class SCR_LootableCorpseComponent : ScriptComponent
 			heatMgr.RegisterKill(entity.GetOrigin());
 		}
 
-		// S.T.A.L.K.E.R. functionality: Evaluate mathematical probability
+		// Mathematical probability evaluation for stashes
 		int roll = Math.RandomIntInclusive(0, 100);
-		
 		if (roll <= m_iStashDropChance)
 		{
-			// The dead stalker had a PDA hook mapping to a stash! Find the manager and trigger it.
 			SCR_ProceduralStashManager stashMgr = SCR_ProceduralStashManager.GetInstance();
 			if (stashMgr)
 			{
-				// In a full MP setting, this should ideally target the killer, but we will broadcast via the origin entity.
 				stashMgr.SparkStashDiscovery(entity, m_iAssociatedTier);
 			}
 		}
@@ -48,7 +48,10 @@ class SCR_LootableCorpseComponent : ScriptComponent
 
 	void ~SCR_LootableCorpseComponent()
 	{
-		SCR_CharacterDamageManagerComponent damageMgr = SCR_CharacterDamageManagerComponent.Cast(GetOwner().FindComponent(SCR_CharacterDamageManagerComponent));
+		IEntity owner = GetOwner();
+		if (!owner) return;
+		
+		SCR_CharacterDamageManagerComponent damageMgr = SCR_CharacterDamageManagerComponent.Cast(owner.FindComponent(SCR_CharacterDamageManagerComponent));
 		if (damageMgr)
 		{
 			damageMgr.GetOnDestroyed().Remove(OnCorpseStashRoll);

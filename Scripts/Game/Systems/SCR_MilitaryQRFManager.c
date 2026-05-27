@@ -25,6 +25,12 @@ class SCR_MilitaryQRFManager : GenericEntity
 		return s_Instance;
 	}
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
@@ -33,12 +39,15 @@ class SCR_MilitaryQRFManager : GenericEntity
 
 	void SetAirbaseLost(bool state)
 	{
+		if (!Replication.IsServer()) return;
 		m_bAirbaseLost = state;
 		if (state) Print("Server: Airbase has been officially designated as LOST. All future QRFs will route from off-map sectors.");
 	}
 
 	void DispatchHelicopter(vector targetZone)
 	{
+		if (!Replication.IsServer()) return;
+		
 		vector spawnPos = m_vAirbaseSpawnPos;
 
 		// If the airbase is lost, use the fallback edge-of-map radial math
@@ -67,16 +76,13 @@ class SCR_MilitaryQRFManager : GenericEntity
 			return;
 		}
 
-		// 3. Spawn the AI Crew
-		// Note from plan: The user chose a Circling Gunship rather than un-loading trees. 
-		// The crew spawns directly into the helicopter mapping.
+		// 3. Spawn the AI Crew and board them into the helicopter
 		IEntity groupEntity = GetGame().SpawnEntityPrefab(Resource.Load(m_sCrewGroupPrefab), GetGame().GetWorld(), params);
 		SCR_AIGroup aiGroup = SCR_AIGroup.Cast(groupEntity);
 		if (!aiGroup) return;
 
-		// Move AI into vehicle
-		// Usually done natively by CompartmentAccessComponent commands in Reforger, we'll proxy it for the conceptual layout.
-		Print("Server: Mi-8 Spawned! Crew boarding dynamically.");
+		BoardGroupIntoVehicle(aiGroup, heli);
+		Print("Server: Mi-8 QRF Spawned! AI Crew boarded dynamically.");
 		
 		// 4. Generate Waypoint to Hotzone
 		EntitySpawnParams wpParams = new EntitySpawnParams();
@@ -98,14 +104,33 @@ class SCR_MilitaryQRFManager : GenericEntity
 	// Used when the Airbase is directly assaulted
 	void LaunchMassResponse(vector hotzone)
 	{
+		if (!Replication.IsServer()) return;
 		Print("Server: MASS RESPONSE SCRAMBLED. Multiple bogeys incoming.");
 		
 		// Spawn 2 Gunships!
 		DispatchHelicopter(hotzone);
 		
-		// Small offset so the second chopper doesn't explode inside the first one
+		// Small offset so the second chopper doesn't collide
 		vector offsetZone = hotzone;
 		offsetZone[0] = offsetZone[0] + 50; 
 		DispatchHelicopter(offsetZone);
+	}
+	
+	// Helper to board group members into compartment slots natively
+	protected void BoardGroupIntoVehicle(SCR_AIGroup aiGroup, IEntity vehicle)
+	{
+		if (!aiGroup || !vehicle) return;
+		
+		array<IEntity> members = new array<IEntity>();
+		aiGroup.GetMembers(members);
+		
+		foreach (IEntity member : members)
+		{
+			CompartmentAccessComponent compartmentAccess = CompartmentAccessComponent.Cast(member.FindComponent(CompartmentAccessComponent));
+			if (compartmentAccess)
+			{
+				compartmentAccess.MoveInVehicle(vehicle);
+			}
+		}
 	}
 }

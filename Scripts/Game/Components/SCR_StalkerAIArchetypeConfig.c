@@ -29,11 +29,15 @@ class SCR_StalkerArchetypeLibrary
 	[Attribute("", UIWidgets.Object, desc: "Archetype configurations")]
 	ref map<EStalkerArchetype, ref SCR_StalkerArchetypeConfig> m_Archetypes;
 	
+	protected static ref SCR_StalkerArchetypeLibrary s_Instance;
+	
 	static SCR_StalkerArchetypeLibrary GetInstance()
 	{
-		// In a full implementation this would be fetched from a central manager or resource load.
-		// For now we instantiate default values if not loaded.
-		return new SCR_StalkerArchetypeLibrary();
+		if (!s_Instance)
+		{
+			s_Instance = new SCR_StalkerArchetypeLibrary();
+		}
+		return s_Instance;
 	}
 	
 	// Quick helper to fetch hardcoded defaults if a config file isn't supplied

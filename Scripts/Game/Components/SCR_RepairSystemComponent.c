@@ -15,48 +15,65 @@ class SCR_RepairSystemComponent : ScriptComponent
 		super.OnPostInit(owner);
 	}
 
-	// Pseudo logic for checking inventory and consuming items to repair a target weapon
+	// Server-authoritative inventory checks and weapon repair execution
 	bool TryRepairWeapon(IEntity player, IEntity weapon, bool useAdvancedKit)
 	{
+		if (!Replication.IsServer()) return false;
+
 		// 1. Check if the weapon has our durability component
 		SCR_WeaponDurabilityComponent durComp = SCR_WeaponDurabilityComponent.Cast(weapon.FindComponent(SCR_WeaponDurabilityComponent));
 		if (!durComp)
 		{
-			Print("Repair Failed: Weapon does not have a Durability Component.");
+			Print("Server: Repair Failed: Weapon does not have a Durability Component.");
 			return false;
 		}
 
 		if (durComp.GetDurability() >= 100)
 		{
-			Print("Repair Failed: Weapon is already in perfect condition.");
+			Print("Server: Repair Failed: Weapon is already in perfect condition.");
 			return false;
 		}
 
-		// 2. Mock Inventory checks (A real implementation loops through standard Reforger SCR_InventoryStorageManagerComponent)
-		bool hasScrap = true; // Temporary mock
-		bool hasKit = true; // Temporary mock
-
-		if (!hasScrap)
+		// 2. Query Reforger's real inventory manager component
+		SCR_InventoryStorageManagerComponent invManager = SCR_InventoryStorageManagerComponent.Cast(player.FindComponent(SCR_InventoryStorageManagerComponent));
+		if (!invManager)
 		{
-			Print("Repair Failed: Missing Scrap material!");
+			Print("Server: Repair Failed: No Inventory Manager found on player.");
 			return false;
 		}
 
-		// 3. Consume items and apply repair
-		float assignedRepairValue = m_fCommonScrapValue;
+		string itemNeeded = "Scrap";
+		if (useAdvancedKit) itemNeeded = "WeaponKit";
 
-		if (useAdvancedKit)
+		// Find and consume the matching repair item inside the inventory
+		array<IEntity> items = new array<IEntity>();
+		invManager.GetItems(items);
+		
+		IEntity itemToConsume = null;
+		foreach (IEntity item : items)
 		{
-			if (!hasKit)
+			if (item && item.GetPrefabData().GetPrefabName().Contains(itemNeeded))
 			{
-				Print("Repair Failed: Missing Weapon Kit!");
-				return false;
+				itemToConsume = item;
+				break;
 			}
-			assignedRepairValue = m_fWeaponKitValue;
 		}
 
+		if (!itemToConsume)
+		{
+			Print("Server: Repair Failed: Missing required item: " + itemNeeded);
+			return false;
+		}
+
+		// 3. Consume the item and apply repair
+		float assignedRepairValue = m_fCommonScrapValue;
+		if (useAdvancedKit) assignedRepairValue = m_fWeaponKitValue;
+
+		// Server deletes the consumed material natively
+		invManager.TryDeleteItem(itemToConsume);
+		
 		durComp.RepairWeapon(assignedRepairValue);
-		Print("Repair Success: Applied " + assignedRepairValue + " durability to weapon.");
+		Print("Server: Repair Success: Applied " + assignedRepairValue + " durability to weapon.");
 		
 		return true;
 	}

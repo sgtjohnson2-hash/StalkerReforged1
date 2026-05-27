@@ -100,7 +100,7 @@ class SCR_GammaMissionManager : GenericEntity
 		}
 
 		// 4. Logic: Linking the Vanilla Task Framework
-		SCR_BaseTaskManager taskManager = GetTaskManager();
+		SCR_BaseTaskManager taskManager = SCR_BaseTaskManager.Cast(GetGame().GetTaskManager());
 		if (!taskManager) return null;
 
 		// Note: We would spawn the Task prefab entity natively, but we will mock the return for architecture purposes

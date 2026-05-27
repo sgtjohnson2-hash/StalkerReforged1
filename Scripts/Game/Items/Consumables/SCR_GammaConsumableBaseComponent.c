@@ -38,7 +38,7 @@ class SCR_GammaConsumableBaseComponent : ScriptComponent
 			SCR_RadiationSicknessComponent radMgr = SCR_RadiationSicknessComponent.Cast(consumer.FindComponent(SCR_RadiationSicknessComponent));
 			if (radMgr)
 			{
-				radMgr.RemoveRadiation(m_fRadiationCleanse);
+				radMgr.ReduceRadiation(m_fRadiationCleanse);
 				Print("Client: Cleansed " + m_fRadiationCleanse + " mSv of radiation.");
 			}
 		}

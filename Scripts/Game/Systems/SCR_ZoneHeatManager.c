@@ -22,7 +22,7 @@ class SCR_ZoneHeatManager : GenericEntity
 	protected float m_fMaxAirbaseCasualties;
 	
 	protected float m_fCurrentAirbaseCasualties = 0;
-	protected bool m_bAirbaseLockdown = false; // Is mass response currently running
+	protected bool m_bAirbaseLockdown = false;
 	
 	protected float m_fCurrentHeat = 0;
 	protected vector m_vLastHotzone = "0 0 0";
@@ -33,16 +33,27 @@ class SCR_ZoneHeatManager : GenericEntity
 		return s_Instance;
 	}
 
+	override void OnPostInit(IEntity owner)
+	{
+		super.OnPostInit(owner);
+		SetEventMask(owner, EntityEvent.INIT);
+	}
+
 	override void EOnInit(IEntity owner)
 	{
 		super.EOnInit(owner);
 		s_Instance = this;
 		
-		GetGame().GetCallqueue().CallLater(DecayHeat, 60000, true); // Decay heat every 60 seconds
+		if (Replication.IsServer())
+		{
+			GetGame().GetCallqueue().CallLater(DecayHeat, 60000, true); // Decay heat every 60 seconds
+		}
 	}
 
 	void RegisterKill(vector killLocation)
 	{
+		if (!Replication.IsServer()) return;
+		
 		// Is this kill physically happening at the Airbase? (Within a 400m radius)
 		float distToAirbase = vector.Distance(killLocation, m_vAirbaseLocation);
 		
@@ -58,8 +69,11 @@ class SCR_ZoneHeatManager : GenericEntity
 			{
 				if (qrfMgr) qrfMgr.SetAirbaseLost(true);
 				
-				SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-				if (ui) ui.ReceiveMessage("General Command", "THE AIRFIELD HAS FALLEN. ALL FORCES ROUTE FROM MAINLAND.");
+				SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
+				if (network)
+				{
+					network.SendNetworkMessage("THE AIRFIELD HAS FALLEN. ALL FORCES ROUTE FROM MAINLAND.", "General Command");
+				}
 			}
 			// If the base isn't lost, but is currently under attack (and not already defending)
 			else if (!m_bAirbaseLockdown)
@@ -86,6 +100,7 @@ class SCR_ZoneHeatManager : GenericEntity
 
 	protected void DecayHeat()
 	{
+		if (!Replication.IsServer()) return;
 		if (m_bQRFActive) return; // Don't decay if currently engaged
 		
 		m_fCurrentHeat -= m_fHeatDecayRate;
@@ -102,9 +117,7 @@ class SCR_ZoneHeatManager : GenericEntity
 		SCR_PDANetworkManager network = SCR_PDANetworkManager.GetInstance();
 		if (network)
 		{
-			// Cheat access to SendNetworkMessage equivalent using UI directly for the broadcast
-			SCR_PDA_UI ui = SCR_PDA_UI.GetInstance();
-			if (ui) ui.ReceiveMessage("Military COMMs Intercept", "Rotors inbound to sector. Lethal force authorized.");
+			network.SendNetworkMessage("Rotors inbound to sector. Lethal force authorized.", "Military COMMs Intercept");
 		}
 
 		SCR_MilitaryQRFManager qrfMgr = SCR_MilitaryQRFManager.GetInstance();

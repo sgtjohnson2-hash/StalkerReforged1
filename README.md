@@ -1,69 +1,59 @@
 # Stalker Reforged: The GAMMA Overhaul
 
-This repository contains a comprehensive, ground-up remaster of classic S.T.A.L.K.E.R. mechanics built natively for the **Enfusion Engine**, transforming Arma Reforger into a hardcore Zone survival experience. 
+This repository contains a comprehensive, ground-up remaster of classic S.T.A.L.K.E.R. mechanics built natively for the **Enfusion Engine**, transforming Arma Reforger into a hardcore Zone survival and Role Play experience. 
 
-Utilizing highly optimized, component-based Enforce Script (`.c`) instead of legacy procedural SQF loops or Lua, this project brings the brutal progression gameplay of **S.T.A.L.K.E.R. GAMMA** alongside fully procedural anomalies, missions, and military threat escalation.
+Utilizing highly optimized, component-based Enforce Script (`.c`) instead of legacy SQF loops, this project brings S.T.A.L.K.E.R. GAMMA survival mechanics, fully procedural anomalies, tactical combat AI OODA loops, and a complete multiplayer roleplay economy.
 
 ---
 
-## Extensive Core Features
+## 🩸 Extensive Core Features
 
 ### 🩸 Core Survival & Medical Engineering
+* **Overhauled Medical (`SCR_GammaMedicalItemComponent`)**: Heal-over-Time loops targeting standard character hitzones rather than instant placebo heals. Incorporates a persistent server-authoritative `SCR_RadiationSicknessComponent` that scales ambient mSv damage.
+* **Physical Needs (`SCR_SurvivalManagerComponent`)**: Server-replicated stats that slowly drain Hunger, Thirst, and Sleep, applying default hitzone damage if neglected.
+* **Weapon Degradation (`SCR_WeaponDurabilityComponent`)**: Server-authoritative gun wear that correlates with shots fired, triggering stochastic jams below 35% condition.
+* **Workbench & Scrap Economy (`SCR_RepairSystemComponent`)**: Actively scans inventories for scrap metal parts or weapon kits on the server, consumes them, and restores weapon durability.
 
-- **Overhauled Medical (`SCR_GammaMedicalItemComponent`)**: Replaces instant-heals with complex Heal-over-Time arrays. Granular tracking for Medkits, Bandages hooking directly into Arma's bleeding system, and a perpetual `SCR_RadiationSicknessComponent` that scales ambient mSv damage over time.
-- **Physical Needs (`SCR_SurvivalManagerComponent`)**: Slowly drains Thirst, Hunger, and Sleep. Neglecting your physiological stats results in brutal, escalating passive damage penalties.
-- **Weapon Degradation (`SCR_WeaponDurabilityComponent`)**: Guns degrade incrementally directly correlating with every fired shot. Reaching critical condition thresholds mathematically subjects you to stochastic firing-pin jams.
-
-### 🛠️ The Workbench Loop
-
-- **Interactive spatial crafting (`SCR_WorkbenchComponent`)**: Interactable Workbench prefabs that bridge from the 3D world directly into structured Enfusion `.layout` graphic interfaces. 
-- **Scrap Economy (`SCR_RepairSystemComponent`)**: Eliminate the need to magically snap guns to 100% durability. Combine scavenged inventory scrap to algorithmically restore weapon conditions.
-
-### 📟 S.T.A.L.K.E.R. PDA Network
-
-- **Dynamic Task Architecture (`SCR_PDATaskManagerComponent`)**: Built natively off Arma Reforger's underlying `SCR_BaseTask` system. Procedural Stalker tasks are automatically piped directly to the player's vanilla HUD and compass.
-- **Ambient & Active Chat (`SCR_PDANetworkManager`)**: Monitors raw server death events (`OnDestroyed`) and transmits real Faction/Player assassinations across the PDA chatfeed, woven together with ambient spoofed STALKER lore and Emission warnings. Features audio hooks mimicking the physical Stalker PDA draw and beep noises.
-
-### 🗺️ The Dynamic Map Systems
-The world of Stalker Reforged isn't static. It generates its own gameplay loops dynamically on the server:
-
-- **Procedural Loot Stashes (`SCR_ProceduralStashManager`)**: Removes the reliance on map traders. `SCR_LootableCorpseComponent` guarantees a mathematical % chance that killing an AI drops "coordinates". The server then geometrically spawns a physical Ammo Box wilderness stash dynamically anywhere from 500m to 3000m away, forcing you to seek it out. Stashes pull dynamically from Basic, Advanced, or Rare item pools (`SCR_StashLootTable`).
-- **Bounty & Faction Contracts (`SCR_GammaMissionManager`)**: The PDA generates aggressive radial missions ("Wipe out FIA Patrol"). The engine mathematically picks a zone near you and dynamically utilizes `GetGame().SpawnEntityPrefab` to manifest actual physical FIA kill targets on the map boundary, natively tracking their deaths via custom entity components to grant RU rewards.
-- **Helicopter Gunship QRFs & Strongholds (`SCR_MilitaryQRFManager`)**: You are not alone in the Zone. `SCR_ZoneHeatManager` silently tracks every bullet and body dropping across the server. Crack the heat threshold, and the Military acts. The engine will procedural spawn a **Soviet Mi-8 Helicopter** in the sky, inject a Spetsnaz troop directly into its bays, and provide an aggressive `SearchAndDestroy` waypoint over the hotzone coordinates.
-- **Static Base Anchors (`SCR_StrongholdComponent`)**: A drag-and-drop component permitting server owners to establish pre-populated Soviet military garrisons that auto-generate defensive patrols immediately on server start.
-
-### ⚡ Classic Anomalies & Blowouts
-
-- **Component Anomalies**: Base framework allowing custom damage, visuals, and logic for Burner, Electra, and Teleport anomalies.
-- **Dynamic Blowout Events**: A unified Game System (`SCR_BlowoutSystem`) tightly woven with Reforger's dynamic weather manager to darken skies, ramp up thick fog, and cast global storms. Includes an 'Instakill' exposure mechanic for players caught outside their `SCR_PlayerBlowoutHandlerComponent` roof-raycast bounds.
+### 🧠 Tactical AI & Environmental Hazards
+* **Advanced Combat AI OODA Loops (`SCR_AdvancedCombatAIComponent`)**: Active server-side sphere scans detect hostiles, triggering realistic reaction OODA delays and bounding flanking maneuvers.
+* **Component Anomalies (`SCR_AnomalyComponent`)**: Server-authoritative triggers for Electra, Burner, and Teleport anomalies dealing physical hitzone damage and teleportation vectors.
+* **Environmental Blowouts (`SCR_BlowoutSystem` & `SCR_PlayerBlowoutHandlerComponent`)**: Automated weather climate events that synchronize rain and fog. The server raycasts above characters, siphoning health if caught outside structures.
 
 ---
 
-## Installation & Deployment
+## 💰 Premium Roleplay Server Economy (New!)
 
-Since this repository contains raw Enforce Source Scripts, you must compile and bind them inside your environment before putting them live on a multiplayer server.
+To support an immersive S.T.A.L.K.E.R. Role Play server, we implemented four major systems:
+1. **💊 Drug Synthesis & Buffs (`SCR_DrugSystemComponent`)**: Consuming processed drugs grants active combat buffs (Stamina Boost or Health Regeneration) while raising toxicity. Exceeding toxicity thresholds triggers lethal overdose states.
+2. **🔑 Safehouses & Land Claims (`SCR_PropertyClaimComponent`)**: Secure rent purchases. Door locks are checked on server authority, permitting access only to the registered tenant or inventory keycard holders.
+3. **🌱 Farmland Crops Farming (`SCR_FarmingComponent`)**: Plant crop seeds, water the soil, and monitor development stages (Seed -> Sprout -> Mature -> Harvest Ready) on the server.
+4. **⚖️ Central Economy Merchant (`SCR_EconomyManager`)**: Dynamic transaction price calculations based on player faction affiliation (e.g. Military receives discounts at Military traders, but is charged extreme prices by Bandits). Handles scrap conversions.
 
-### 🛠️ Local Workbench Setup (Testing)
-1. **Launch ARMA Reforger Tools (Workbench).**
-2. On the welcome screen, click on **Create New Project**. 
-   - *(Alternatively, if you downloaded the exact `.gproj` scaffolding, you can click "Open Project" on `addon.gproj`)*
-3. **Copy the Code**: Close Workbench entirely. Copy the `Scripts/`, `UI/`, and `Prefabs/` folders from this repository directly into your newly generated Workbench Addon directory (typically `Documents/My Games/ArmaReforgerWorkbench/addons/YourNewModName`).
-4. **Re-Open Workbench** and launch your project in the **World Editor**. Start dragging elements like `SCR_ZoneHeatManager` or `SCR_BanditCampComponent` onto the map geometry!
-5. **Asset Dependency Note**: This repository utilizes vanilla Reforger Assets (FIA/Soviet) as placeholders for the custom scripts. True `.ogf` S.T.A.L.K.E.R. models require manual conversion to `.fbx` via Blender and importation through Workbench to bind to these scripts.
+---
 
-### 🌐 Dedicated Server Deployment
-To get this custom STALKER framework onto a live dedicated server:
+## 👾 Custom Mutant AI Behavior (New!)
 
-1. **Pack the Project**: Open Workbench. Go to `Project > Publish Project` (You don't have to make it public on the Workshop, you can leave it Unlisted or Local). 
-2. Let the engine bake and compile the `.c` scripts into optimized data chunks.
-3. **Acquire your Mod/Addon ID**: Once published or packed, the Workshop will give you a unique GUID (e.g., `59A12B34C5...`).
-4. **Edit your `server.json`**: Open the configuration file on your Dedicated Server host. Under the `"mods": []` array, insert your project's ID. 
-```json
-"mods": [
-    {
-        "modId": "YOUR_WORKSHOP_GUID",
-        "name": "Stalker Reforged - Framework"
-    }
-]
-```
-5. **Reboot the Server**: The server will automatically download the baked scripts and initialize the Zone Heat, Stash Spawners, and Bandit algorithms universally for all connecting clients!
+* **Snork Leap Attack (`SCR_StalkerMutantBrainComponent`)**: When within 15 meters of player characters, the Snork lunges forward through the air using a physical velocity impulse, dealing 35 HP claw strike damage on impact.
+* **Bloodsucker Invisibility (`SCR_StalkerMutantBrainComponent`)**: Activates cloaking beyond 10 meters, broadcasting client RPCs to hide its mesh. When within 3 meters, it uncloaks, screams, and executes a vampire life siphon to heal itself!
+
+---
+
+## 📟 Custom S.T.A.L.K.E.R. PDA UI Menu (New!)
+
+We built a native Enfusion UI controller **`SCR_StalkerPDAMenu.c`** inheriting from `ChimeraMenuBase` to govern custom layouts:
+* **Tasks Log:** Renders active assignments and rewards.
+* **Chat Logs:** Real-time replicated chat feeds from the server network.
+* **Factions Board:** Shows dynamic territory control counters.
+
+---
+
+## 🚀 Childishly Simple Server Installation
+
+We automated 100% of the Dedicated Server setup! 
+1. Open **Windows PowerShell** as Administrator and execute this single-click setup:
+   ```powershell
+   Set-ExecutionPolicy Bypass -Scope Process -Force; powershell -File "e:\Stalker Reforged\deploy_server.ps1"
+   ```
+2. Navigate to the newly created folder `C:\ArmaReforgerServer` and double-click **`Start_STALKER_Server.bat`**.
+3. That is it! The launcher will automatically fetch files from Steam and boot your server.
+4. For customized server names and detailed configurations, read the **[SERVER_SETUP.md](file:///e:/Stalker%20Reforged/SERVER_SETUP.md)** guide.

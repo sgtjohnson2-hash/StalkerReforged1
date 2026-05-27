@@ -60,9 +60,12 @@ class SCR_GammaMedicalItemComponent : SCR_ConsumableItemComponent
 		SCR_CharacterDamageManagerComponent damageManager = SCR_CharacterDamageManagerComponent.Cast(m_OwnerCharacter.FindComponent(SCR_CharacterDamageManagerComponent));
 		if (damageManager)
 		{
-			// Heal the character (negative damage or specific Heal method)
-			damageManager.AddHealth(tickHeal);
-			Print("Healed " + tickHeal + " HP.");
+			HitZone defaultHZ = damageManager.GetDefaultHitZone();
+			if (defaultHZ)
+			{
+				defaultHZ.Heal(tickHeal);
+				Print("Healed " + tickHeal + " HP on default hitzone.");
+			}
 			
 			// Optional logic for removing radiation
 			if (m_fRadRemoval > 0)

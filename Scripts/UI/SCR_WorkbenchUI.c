@@ -26,32 +26,41 @@ class SCR_WorkbenchUI : ScriptComponent
 	protected void OpenMenu()
 	{
 		m_bIsOpen = true;
-		
-		// In Enfusion, this opens an actual .layout file
-		// GetGame().GetMenuManager().OpenMenu(ChimeraMenuPreset.WORKBENCH_GUI);
-		
 		Print("Client UI: WORKBENCH MENU OPENED. Awaiting player repair commands.");
 	}
 
 	protected void CloseMenu()
 	{
 		m_bIsOpen = false;
-		
-		// GetGame().GetMenuManager().CloseMenuByPreset(ChimeraMenuPreset.WORKBENCH_GUI);
 		Print("Client UI: WORKBENCH MENU CLOSED.");
 	}
 
-	// This function would be hooked to a UI button click event inside the .layout
+	// Triggered by UI button click on the client -> dispatches server RPC
 	void OnRepairButtonPressed(IEntity targetWeapon, bool useAdvancedKit)
 	{
-		SCR_RepairSystemComponent repairSystem = SCR_RepairSystemComponent.Cast(GetOwner().FindComponent(SCR_RepairSystemComponent));
+		if (Replication.IsClient())
+		{
+			Rpc(RpcServer_RepairWeapon, targetWeapon, useAdvancedKit);
+		}
+	}
+	
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcServer_RepairWeapon(IEntity targetWeapon, bool useAdvancedKit)
+	{
+		PlayerController pc = PlayerController.Cast(GetOwner());
+		if (!pc) return;
+		
+		IEntity character = pc.GetControlledEntity();
+		if (!character) return;
+		
+		SCR_RepairSystemComponent repairSystem = SCR_RepairSystemComponent.Cast(character.FindComponent(SCR_RepairSystemComponent));
 		if (repairSystem)
 		{
-			repairSystem.TryRepairWeapon(GetOwner(), targetWeapon, useAdvancedKit);
+			repairSystem.TryRepairWeapon(character, targetWeapon, useAdvancedKit);
 		}
 		else
 		{
-			Print("Client UI Error: No Repair System found on player bridging the UI.");
+			Print("Server RP Error: No Repair System found on player character to execute repair.");
 		}
 	}
 }
